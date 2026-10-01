@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Briefcase, MapPin, DollarSign, Clock, Filter, Heart, X, Star, 
   MessageSquare, User, Building, ShieldCheck, Search, 
-  AlertTriangle, Sparkles, Sliders, Users, CheckCircle
+  AlertTriangle, Sparkles, Sliders, Users, CheckCircle, Navigation
 } from 'lucide-react';
 
 // Importaciones de Firebase
@@ -25,7 +25,22 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Candidatos de prueba para el modo Negocio (Búsqueda de gente)
+// Función de Haversine para calcular la distancia precisa en Km entre 2 coordenadas
+function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371; // Radio de la Tierra en km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+  return distance.toFixed(1); // Devuelve distancia con 1 decimal (Ej. 1.4)
+}
+
+// Candidatos de prueba para el modo Negocio
 const SAMPLE_CANDIDATES = [
   {
     id: 'c1',
@@ -48,23 +63,12 @@ const SAMPLE_CANDIDATES = [
     experience: 'Manejo de redes sociales',
     bio: 'Me apasiona crear contenido visual para negocios locales. Busco apoyo en ventas o marketing.',
     avatar: '👩‍🎨'
-  },
-  {
-    id: 'c3',
-    name: 'Carlos Mendoza',
-    age: '22 años',
-    zone: 'Roma Sur (A 3.0 km)',
-    skills: ['Inventario', 'Acomodo de mercancía', 'Computación'],
-    availability: 'Tiempo completo',
-    experience: '6 meses en tienda de abarrotes',
-    bio: 'Responsable y organizado. Licencia de conducir vigente y disponibilidad inmediata.',
-    avatar: '🧑‍💻'
   }
 ];
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('landing'); // landing, explore, candidates, matches, profile, post-job
-  const [userRole, setUserRole] = useState('seeker'); // seeker (busca trabajo), business (busca gente)
+  const [currentPage, setCurrentPage] = useState('landing'); 
+  const [userRole, setUserRole] = useState('seeker'); 
   const [jobs, setJobs] = useState([]);
   const [candidates] = useState(SAMPLE_CANDIDATES);
   const [loading, setLoading] = useState(true);
@@ -76,17 +80,47 @@ export default function App() {
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [lastMatch, setLastMatch] = useState(null);
 
+  // Geolocalización del usuario que busca empleo
+  const [userCoords, setUserCoords] = useState(null);
+  const [geoStatus, setGeoStatus] = useState('Obteniendo tu ubicación GPS...');
+
   // Estados de Filtro
   const [showFilters, setShowFilters] = useState(false);
   const [filterDistance, setFilterDistance] = useState(10);
   const [filterType, setFilterType] = useState('Todos');
 
-  // Campos para formulario de publicar vacante
+  // Campos para formulario de publicar vacante (Del Negocio)
   const [newTitle, setNewTitle] = useState('');
   const [newCompany, setNewCompany] = useState('');
+  const [newAddress, setNewAddress] = useState('');
   const [newSalary, setNewSalary] = useState('');
   const [newSchedule, setNewSchedule] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  // Coordenadas fijas por defecto del negocio (Ejemplo: Centro)
+  const [businessLat, setBusinessLat] = useState(19.4326);
+  const [businessLng, setBusinessLng] = useState(-99.1332);
+
+  // Obtenemos la ubicación GPS en tiempo real del candidato
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserCoords({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+          setGeoStatus('Ubicación activa');
+        },
+        (error) => {
+          console.warn("Geolocalización no otorgada:", error);
+          setGeoStatus('Sin permiso GPS (Mostrando ubicación estimada)');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } else {
+      setGeoStatus('Geolocalización no soportada por el navegador');
+    }
+  }, []);
 
   // Cargar vacantes en tiempo real desde Firebase
   useEffect(() => {
@@ -106,38 +140,39 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Guardar vacante en Firebase
+  // Guardar vacante en Firebase con la dirección fija e independiente del negocio
   const handlePostJob = async (e) => {
     e.preventDefault();
     try {
       await addDoc(collection(db, "vacantes"), {
         title: newTitle,
         company: newCompany,
+        address: newAddress || 'Dirección del negocio',
         salary: newSalary,
         schedule: newSchedule,
         description: newDesc,
-        distance: 'A 2 km de ti',
+        lat: parseFloat(businessLat),
+        lng: parseFloat(businessLng),
         logo: '🏪',
         verified: true,
-        matchScore: 92,
         createdAt: serverTimestamp()
       });
 
       setNewTitle('');
       setNewCompany('');
+      setNewAddress('');
       setNewSalary('');
       setNewSchedule('');
       setNewDesc('');
 
-      alert('¡Vacante publicada con éxito en la base de datos!');
+      alert('¡Vacante publicada con la ubicación física fija de tu negocio!');
       setCurrentPage('explore');
     } catch (error) {
       console.error("Error al publicar vacante: ", error);
-      alert('Error al publicar. Verifica la configuración de Firestore.');
+      alert('Error al publicar vacante.');
     }
   };
 
-  // Manejo de Interés / Swipe
   const handleLike = (item, type) => {
     setMatches([...matches, { ...item, type }]);
     setLastMatch({ ...item, type });
@@ -158,10 +193,17 @@ export default function App() {
     }
   };
 
-  // Filtrado de vacantes
+  // Filtrado de vacantes por distancia y horario
   const filteredJobs = jobs.filter(job => {
     if (filterType !== 'Todos' && job.schedule && !job.schedule.toLowerCase().includes(filterType.toLowerCase())) {
       return false;
+    }
+    // Filtrar por distancia si el usuario tiene GPS activo
+    if (userCoords && job.lat && job.lng) {
+      const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, job.lat, job.lng);
+      if (dist && parseFloat(dist) > filterDistance) {
+        return false;
+      }
     }
     return true;
   });
@@ -189,11 +231,7 @@ export default function App() {
             }}
             className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 flex items-center space-x-1"
           >
-            {userRole === 'seeker' ? (
-              <><span>👤 Busco Chamba</span></>
-            ) : (
-              <><span>🏪 Busco Personal</span></>
-            )}
+            {userRole === 'seeker' ? <span>👤 Busco Chamba</span> : <span>🏪 Busco Personal</span>}
           </button>
         </header>
       )}
@@ -212,7 +250,7 @@ export default function App() {
                 ChambaCerca
               </h1>
               <p className="text-indigo-100 text-sm max-w-xs mx-auto leading-relaxed">
-                Conecta empleos locales y candidatos en tiempo real con un solo swipe.
+                Encuentra empleo local midiendo la distancia real desde tu ubicación física.
               </p>
 
               <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
@@ -232,20 +270,20 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <div className="text-xs text-indigo-200/70 pb-4">Conectado a Firestore Cloud Data</div>
+            <div className="text-xs text-indigo-200/70 pb-4">Conectado a Firestore Cloud Database</div>
           </div>
         )}
 
-        {/* MODO BUSCO CHAMBA: EXPLORAR VACANTES */}
+        {/* EXPLORAR VACANTES */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            {/* PANEL DE FILTROS */}
+            {/* BARRA DE UBICACIÓN Y FILTROS */}
             <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-2">
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2 text-xs font-semibold text-slate-600">
-                  <MapPin size={14} className="text-indigo-600" />
-                  <span>Radio: Múltiples zonas (&lt; {filterDistance} km)</span>
+                  <Navigation size={14} className="text-indigo-600 animate-pulse" />
+                  <span>{geoStatus}</span>
                 </div>
                 <button 
                   onClick={() => setShowFilters(!showFilters)}
@@ -259,13 +297,13 @@ export default function App() {
               {showFilters && (
                 <div className="pt-3 border-t border-slate-100 space-y-3 text-xs">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Distancia máxima: {filterDistance} km</label>
+                    <label className="block font-bold text-slate-700 mb-1">Radio máximo: {filterDistance} km</label>
                     <input 
                       type="range" 
                       min="1" 
                       max="20" 
                       value={filterDistance} 
-                      onChange={(e) => setFilterDistance(e.target.value)}
+                      onChange={(e) => setFilterDistance(Number(e.target.value))}
                       className="w-full accent-indigo-600"
                     />
                   </div>
@@ -294,17 +332,30 @@ export default function App() {
             {loading ? (
               <div className="text-center py-20 space-y-3">
                 <div className="animate-spin text-indigo-600 text-3xl mx-auto">🌀</div>
-                <p className="text-xs text-slate-500">Buscando vacantes en tiempo real...</p>
+                <p className="text-xs text-slate-500">Cargando vacantes reales...</p>
               </div>
             ) : filteredJobs.length === 0 ? (
               <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm border border-slate-100 my-10">
                 <div className="text-4xl">🏪</div>
-                <h3 className="font-bold text-lg text-slate-800">No hay vacantes disponibles</h3>
-                <p className="text-xs text-slate-500">Publica la primera desde el modo Negocio.</p>
+                <h3 className="font-bold text-lg text-slate-800">No hay vacantes en esta zona o rango</h3>
+                <p className="text-xs text-slate-500">Prueba ampliar el filtro de distancia o publicar una vacante.</p>
               </div>
             ) : jobIndex < filteredJobs.length ? (
               <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[460px]">
                 <div className="p-5 space-y-4">
+                  
+                  {/* CÁLCULO DE DISTANCIA REAL */}
+                  <div className="flex justify-between items-center">
+                    <div className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold flex items-center space-x-1">
+                      <MapPin size={12} />
+                      <span>
+                        {userCoords && filteredJobs[jobIndex].lat && filteredJobs[jobIndex].lng
+                          ? `A ${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km de tu posición`
+                          : filteredJobs[jobIndex].address || 'Ubicación local'}
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
                       {filteredJobs[jobIndex].logo || '💼'}
@@ -328,6 +379,13 @@ export default function App() {
                       <Clock size={14} className="text-amber-500" />
                       <span className="font-medium">{filteredJobs[jobIndex].schedule}</span>
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dirección fija del negocio</h4>
+                    <p className="text-xs text-slate-700 font-medium">
+                      📍 {filteredJobs[jobIndex].address || 'Dirección registrada'}
+                    </p>
                   </div>
 
                   <div className="space-y-1">
@@ -368,7 +426,7 @@ export default function App() {
           </div>
         )}
 
-        {/* MODO BUSCO PERSONAL: EXPLORAR CANDIDATOS / GENTE */}
+        {/* MODO BUSCO PERSONAL: CANDIDATOS */}
         {currentPage === 'candidates' && (
           <div className="p-4 space-y-4">
             <div className="flex justify-between items-center">
@@ -484,10 +542,10 @@ export default function App() {
           </div>
         )}
 
-        {/* PUBLICAR VACANTE */}
+        {/* FORMULARIO PUBLICAR VACANTE CON UBICACIÓN FIJA DEL NEGOCIO */}
         {currentPage === 'post-job' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl text-slate-900">Publicar vacante REAL 🏪</h2>
+            <h2 className="font-black text-xl text-slate-900">Publicar vacante de tu Negocio 🏪</h2>
             <form onSubmit={handlePostJob} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Nombre del puesto</label>
@@ -511,6 +569,19 @@ export default function App() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs" 
                   required 
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Dirección o Colonia física del local</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej. Av. Universidad 450, Col. Narvarte" 
+                  value={newAddress} 
+                  onChange={(e) => setNewAddress(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs" 
+                  required 
+                />
+                <span className="text-[10px] text-slate-400">Esta dirección es fija y no cambiará aunque te desplaces de lugar.</span>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -541,7 +612,7 @@ export default function App() {
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Descripción</label>
                 <textarea 
-                  placeholder="Descripción del trabajo..." 
+                  placeholder="Descripción de actividades..." 
                   value={newDesc} 
                   onChange={(e) => setNewDesc(e.target.value)} 
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs h-20" 
@@ -550,7 +621,7 @@ export default function App() {
               </div>
 
               <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition">
-                Guardar en la Base de Datos
+                Guardar Vacante con Dirección Fija
               </button>
             </form>
           </div>
