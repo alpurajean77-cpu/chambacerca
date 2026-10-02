@@ -61,7 +61,7 @@ const convertFileToBase64 = (file) => {
   });
 };
 
-// Candidatos demo
+// Candidatos demo de respaldo
 const DEMO_CANDIDATES = [
   {
     id: 'cand-1',
@@ -286,7 +286,7 @@ export default function App() {
   const [userRole, setUserRole] = useState('seeker'); // 'seeker' o 'business'
   
   const [jobs, setJobs] = useState([]);
-  const [candidates, setCandidates] = useState(DEMO_CANDIDATES);
+  const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [jobIndex, setJobIndex] = useState(0);
@@ -365,7 +365,7 @@ export default function App() {
     }
   }, []);
 
-  // 1. CARGAR O INICIALIZAR PERFIL DESDE FIREBASE PERMANENTEMENTE
+  // 1. CARGAR O INICIALIZAR PERFIL PROPIO DESDE FIREBASE
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -375,7 +375,6 @@ export default function App() {
         if (docSnap.exists()) {
           setCandidateProfile(docSnap.data());
         } else {
-          // Perfil inicial por defecto si no existe
           const initialData = {
             name: 'Alex González',
             age: '20 años',
@@ -395,7 +394,31 @@ export default function App() {
     fetchProfile();
   }, [currentUserId]);
 
-  // 2. CARGAR MATCHES DESDE FIREBASE EN TIEMPO REAL
+  // 2. CARGAR TODOS LOS PERFILES REALES DE CANDIDATOS PARA LOS NEGOCIOS
+  useEffect(() => {
+    const q = query(collection(db, "perfiles"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const realProfiles = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+
+      // Unir perfiles reales guardados con los de demo como respaldo
+      const combined = [
+        ...realProfiles,
+        ...DEMO_CANDIDATES.filter(demo => !realProfiles.some(real => real.id === demo.id))
+      ];
+
+      setCandidates(combined);
+    }, (err) => {
+      console.error("Error al obtener candidatos:", err);
+      setCandidates(DEMO_CANDIDATES);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 3. CARGAR MATCHES EN TIEMPO REAL
   useEffect(() => {
     const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -406,7 +429,7 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUserId]);
 
-  // Cargar vacantes en tiempo real desde Firebase
+  // 4. CARGAR VACANTES EN TIEMPO REAL
   useEffect(() => {
     const q = query(collection(db, "vacantes"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -437,7 +460,7 @@ export default function App() {
     } catch (err) {
       console.error("Error al guardar perfil:", err);
       setIsSavingProfile(false);
-      alert("Error al guardar perfil en la nube.");
+      alert(`Error al guardar perfil: ${err.message}`);
     }
   };
 
@@ -502,7 +525,7 @@ export default function App() {
     }
   };
 
-  // GUARDAR MATCH DE MANERA PERMANENTE EN FIREBASE
+  // GUARDAR MATCH EN FIREBASE
   const handleLike = async (item) => {
     setLastMatch(item);
     setShowMatchModal(true);
@@ -527,7 +550,7 @@ export default function App() {
     else setCandidateIndex(candidateIndex + 1);
   };
 
-  // Filtrado de vacantes por distancia
+  // Filtrado de vacantes
   const filteredJobs = jobs.filter(job => {
     if (filterType !== 'Todos' && job.schedule && !job.schedule.toLowerCase().includes(filterType.toLowerCase())) return false;
     if (userCoords && job.lat && job.lng && filterDistance < 20) {
@@ -632,7 +655,7 @@ export default function App() {
                   <Navigation size={14} className="text-indigo-600 animate-pulse" />
                   <span>{geoStatus}</span>
                   <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                    {userRole === 'seeker' ? 'Viendo Vacantes' : 'Viendo Candidatos'}
+                    {userRole === 'seeker' ? 'Viendo Vacantes' : 'Viendo Candidatos Reales'}
                   </span>
                 </div>
                 {userRole === 'seeker' && (
@@ -727,7 +750,13 @@ export default function App() {
                 <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[480px]">
                   <div>
                     <div className="h-28 bg-indigo-100 relative overflow-hidden flex items-center justify-center">
-                      <img src={candidates[candidateIndex].banner} alt="Portada" className="w-full h-full object-cover" />
+                      {candidates[candidateIndex].banner ? (
+                        <img src={candidates[candidateIndex].banner} alt="Portada" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center text-white/50 text-xs">
+                          Sin Foto de Portada
+                        </div>
+                      )}
                       <div className="absolute top-3 right-3 bg-indigo-600 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
                         <UserCheck size={10} />
                         <span>Candidato Disponible</span>
@@ -736,24 +765,36 @@ export default function App() {
 
                     <div className="px-5 relative flex justify-between items-end -mt-10 mb-3">
                       <div className="w-18 h-18 rounded-2xl bg-white p-1 shadow-md">
-                        <img src={candidates[candidateIndex].avatar} alt="Perfil" className="w-full h-full object-cover rounded-xl" />
+                        {candidates[candidateIndex].avatar ? (
+                          <img src={candidates[candidateIndex].avatar} alt="Perfil" className="w-full h-full object-cover rounded-xl" />
+                        ) : (
+                          <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center text-2xl">👨‍🎓</div>
+                        )}
                       </div>
                     </div>
 
                     <div className="p-5 pt-0 space-y-3">
                       <div>
-                        <h3 className="font-bold text-slate-900 text-xl">{candidates[candidateIndex].name}</h3>
-                        <p className="text-xs font-semibold text-indigo-600">{candidates[candidateIndex].role} • {candidates[candidateIndex].age}</p>
+                        <h3 className="font-bold text-slate-900 text-xl">
+                          {candidates[candidateIndex].name || 'Candidato sin Nombre'}
+                        </h3>
+                        <p className="text-xs font-semibold text-indigo-600">
+                          {candidates[candidateIndex].role || 'Buscando Empleo'} • {candidates[candidateIndex].age || 'Edad no especificada'}
+                        </p>
                       </div>
 
                       <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/50 space-y-1">
                         <h4 className="text-[10px] font-bold text-indigo-400 uppercase">Habilidades</h4>
-                        <p className="text-xs font-medium text-indigo-900">{candidates[candidateIndex].skills}</p>
+                        <p className="text-xs font-medium text-indigo-900">
+                          {candidates[candidateIndex].skills || 'No especificadas'}
+                        </p>
                       </div>
 
                       <div className="space-y-1">
                         <h4 className="text-[10px] font-bold text-slate-400 uppercase">Sobre mí</h4>
-                        <p className="text-xs text-slate-600 leading-relaxed">{candidates[candidateIndex].bio}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          {candidates[candidateIndex].bio || 'Sin descripción disponible.'}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -891,7 +932,7 @@ export default function App() {
                       </div>
                       <div>
                         <h4 className="font-bold text-sm text-slate-800">{item.title || item.name}</h4>
-                        <p className="text-xs text-slate-500">{item.company || item.role}</p>
+                        <p className="text-xs text-slate-500">{item.company || item.role || item.skills}</p>
                       </div>
                     </div>
                     <button className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
