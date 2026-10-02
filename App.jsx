@@ -9,8 +9,8 @@ import {
 // Importaciones de Firebase
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, collection, addDoc, onSnapshot, query, where,
-  doc, setDoc, getDoc, serverTimestamp 
+  getFirestore, collection, addDoc, onSnapshot, query,
+  doc, setDoc, getDoc, serverTimestamp, where 
 } from 'firebase/firestore';
 
 // Configuración de Firebase
@@ -89,7 +89,7 @@ const DEMO_CANDIDATES = [
   }
 ];
 
-// COMPONENTE DE MAPA INTERACTIVO (LEAFLET DYNAMIC LOAD)
+// MODAL MAPA
 const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -128,8 +128,7 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
       const data = await res.json();
       if (data && data.display_name) {
         const parts = data.display_name.split(',');
-        const shortAddress = parts.slice(0, 3).join(',');
-        setAddressName(shortAddress);
+        setAddressName(parts.slice(0, 3).join(','));
       } else {
         setAddressName(`Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
       }
@@ -142,10 +141,7 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
     if (!mapContainerRef.current || mapInstanceRef.current || !window.L) return;
 
     const L = window.L;
-    const initialLat = selectedCoords.lat;
-    const initialLng = selectedCoords.lng;
-
-    const map = L.map(mapContainerRef.current).setView([initialLat, initialLng], 16);
+    const map = L.map(mapContainerRef.current).setView([selectedCoords.lat, selectedCoords.lng], 16);
     mapInstanceRef.current = map;
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -159,10 +155,10 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
       iconAnchor: [12, 12]
     });
 
-    const marker = L.marker([initialLat, initialLng], { draggable: true, icon: customIcon }).addTo(map);
+    const marker = L.marker([selectedCoords.lat, selectedCoords.lng], { draggable: true, icon: customIcon }).addTo(map);
     markerRef.current = marker;
 
-    reverseGeocode(initialLat, initialLng);
+    reverseGeocode(selectedCoords.lat, selectedCoords.lng);
 
     marker.on('dragend', (e) => {
       const pos = e.target.getLatLng();
@@ -197,21 +193,10 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
           markerRef.current.setLatLng([newLat, newLng]);
         }
       } else {
-        alert("Ubicación no encontrada. Intenta con más detalles.");
+        alert("Ubicación no encontrada.");
       }
     } catch {
       alert("Error al buscar dirección.");
-    }
-  };
-
-  const handleUseCurrentGps = () => {
-    if (userCoords && mapInstanceRef.current && markerRef.current) {
-      setSelectedCoords(userCoords);
-      mapInstanceRef.current.setView([userCoords.lat, userCoords.lng], 16);
-      markerRef.current.setLatLng([userCoords.lat, userCoords.lng]);
-      reverseGeocode(userCoords.lat, userCoords.lng);
-    } else {
-      alert("Obteniendo GPS...");
     }
   };
 
@@ -221,7 +206,7 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-800 text-sm">Selecciona la ubicación exacta</h3>
-            <p className="text-[10px] text-slate-500">Haz clic en el mapa o arrastra el pin hasta tu local</p>
+            <p className="text-[10px] text-slate-500">Haz clic en el mapa o arrastra el pin</p>
           </div>
           <button onClick={onClose} className="p-2 bg-slate-200 text-slate-600 rounded-full">
             <X size={16} />
@@ -232,7 +217,7 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
           <form onSubmit={handleSearchOnMap} className="flex gap-2">
             <input 
               type="text" 
-              placeholder="Buscar colonia, calle o ciudad..."
+              placeholder="Buscar calle o colonia..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 bg-slate-100 px-3 py-2 rounded-xl text-xs outline-none"
@@ -241,15 +226,6 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
               Buscar
             </button>
           </form>
-
-          <button 
-            type="button" 
-            onClick={handleUseCurrentGps}
-            className="w-full bg-indigo-50 text-indigo-700 text-xs font-semibold py-1.5 rounded-xl flex items-center justify-center space-x-1"
-          >
-            <Crosshair size={14} />
-            <span>Centrar en mi posición GPS actual</span>
-          </button>
         </div>
 
         <div className="flex-1 relative w-full bg-slate-100">
@@ -257,18 +233,18 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
         </div>
 
         <div className="p-4 bg-white border-t border-slate-100 space-y-3">
-          <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 flex items-start space-x-2">
+          <div className="bg-slate-50 p-2.5 rounded-2xl border flex items-start space-x-2">
             <MapPin size={18} className="text-indigo-600 shrink-0 mt-0.5" />
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase">Dirección seleccionada:</p>
-              <p className="text-xs font-medium text-slate-700 leading-tight">{addressName}</p>
+              <p className="text-xs font-medium text-slate-700">{addressName}</p>
             </div>
           </div>
 
           <button 
             type="button"
             onClick={() => onConfirm({ coords: selectedCoords, address: addressName })}
-            className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-lg hover:bg-indigo-700 transition"
+            className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-lg"
           >
             <Check size={16} />
             <span>Confirmar esta ubicación</span>
@@ -283,7 +259,7 @@ export default function App() {
   const currentUserId = getUserId();
 
   const [currentPage, setCurrentPage] = useState('landing'); 
-  const [userRole, setUserRole] = useState('seeker'); // 'seeker' o 'business'
+  const [userRole, setUserRole] = useState('seeker'); 
   
   const [jobs, setJobs] = useState([]);
   const [candidates, setCandidates] = useState([]);
@@ -296,33 +272,28 @@ export default function App() {
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [lastMatch, setLastMatch] = useState(null);
 
-  // Estado de guardado de perfil
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSavedNotice, setProfileSavedNotice] = useState(false);
-
-  // Animación de transición
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // Geolocalización real
   const [userCoords, setUserCoords] = useState(null);
   const [geoStatus, setGeoStatus] = useState('Obteniendo GPS...');
 
-  // Filtros
   const [showFilters, setShowFilters] = useState(false);
   const [filterDistance, setFilterDistance] = useState(15);
   const [filterType, setFilterType] = useState('Todos');
 
-  // Perfil Candidato Persistente
+  // Perfil Candidato con campo ROLE
   const [candidateProfile, setCandidateProfile] = useState({
     name: '',
     age: '',
+    role: '',
     skills: '',
     bio: '',
     avatar: null,
     banner: null
   });
 
-  // Campos para formulario de publicar vacante
   const [newTitle, setNewTitle] = useState('');
   const [newCompany, setNewCompany] = useState('');
   const [newAddress, setNewAddress] = useState('');
@@ -334,7 +305,6 @@ export default function App() {
   const [newDesc, setNewDesc] = useState('');
   const [businessLogo, setBusinessLogo] = useState(null);
 
-  // Navegación animada
   const navigateTo = (page, role = userRole) => {
     setIsTransitioning(true);
     setTimeout(() => {
@@ -346,7 +316,6 @@ export default function App() {
     }, 280);
   };
 
-  // Obtener GPS del navegador
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -356,16 +325,13 @@ export default function App() {
           setSelectedCoords(coords);
           setGeoStatus('GPS Activo 📍');
         },
-        (err) => {
-          console.warn(err);
-          setGeoStatus('Ubicación aproximada');
-        },
+        () => setGeoStatus('Ubicación aproximada'),
         { enableHighAccuracy: true, timeout: 10000 }
       );
     }
   }, []);
 
-  // 1. CARGAR O INICIALIZAR PERFIL PROPIO DESDE FIREBASE
+  // 1. OBTENER MI PERFIL DESDE FIREBASE
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -378,6 +344,7 @@ export default function App() {
           const initialData = {
             name: 'Alex González',
             age: '20 años',
+            role: 'Atención a Clientes / Barista',
             skills: 'Atención al cliente, Caja, Cafetería',
             bio: 'Estudiante enfocado en atención al cliente con disponibilidad inmediata.',
             avatar: null,
@@ -387,14 +354,14 @@ export default function App() {
           setCandidateProfile(initialData);
         }
       } catch (err) {
-        console.error("Error al cargar perfil de Firebase:", err);
+        console.error("Error al cargar perfil:", err);
       }
     };
 
     fetchProfile();
   }, [currentUserId]);
 
-  // 2. CARGAR TODOS LOS PERFILES REALES DE CANDIDATOS PARA LOS NEGOCIOS
+  // 2. ESCUCHAR TODOS LOS PERFILES REALES Y ORDENARLOS
   useEffect(() => {
     const q = query(collection(db, "perfiles"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -403,7 +370,14 @@ export default function App() {
         ...d.data()
       }));
 
-      // Unir perfiles reales guardados con los de demo como respaldo
+      // Ordenar por fecha de actualización (los más recientes primero)
+      realProfiles.sort((a, b) => {
+        const timeA = a.updatedAt?.seconds || 0;
+        const timeB = b.updatedAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      // Combinar con perfiles de demo al final como respaldo
       const combined = [
         ...realProfiles,
         ...DEMO_CANDIDATES.filter(demo => !realProfiles.some(real => real.id === demo.id))
@@ -418,7 +392,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 3. CARGAR MATCHES EN TIEMPO REAL
+  // 3. MATCHES
   useEffect(() => {
     const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -429,7 +403,7 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUserId]);
 
-  // 4. CARGAR VACANTES EN TIEMPO REAL
+  // 4. VACANTES
   useEffect(() => {
     const q = query(collection(db, "vacantes"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -444,15 +418,16 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // GUARDAR PERFIL EN FIREBASE CLOUD
+  // GUARDAR PERFIL EN FIRESTORE CON TIMESTAMP DE ORDENAMIENTO
   const handleSaveProfile = async () => {
     setIsSavingProfile(true);
     try {
       const docRef = doc(db, "perfiles", currentUserId);
-      await setDoc(docRef, {
+      const dataToSave = {
         ...candidateProfile,
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      };
+      await setDoc(docRef, dataToSave, { merge: true });
 
       setIsSavingProfile(false);
       setProfileSavedNotice(true);
@@ -464,7 +439,6 @@ export default function App() {
     }
   };
 
-  // Subir fotos
   const handleProfileImageUpload = async (e, type) => {
     const file = e.target.files[0];
     if (file) {
@@ -481,17 +455,14 @@ export default function App() {
     }
   };
 
-  // Confirmar selección del mapa
   const handleConfirmLocation = ({ coords, address }) => {
     setSelectedCoords(coords);
     setNewAddress(address);
     setShowMapPicker(false);
   };
 
-  // Publicar vacante
   const handlePostJob = async (e) => {
     e.preventDefault();
-    
     if (!selectedCoords) {
       alert("Por favor selecciona la ubicación en el mapa.");
       return;
@@ -501,7 +472,7 @@ export default function App() {
       await addDoc(collection(db, "vacantes"), {
         title: newTitle,
         company: newCompany,
-        address: newAddress || "Ubicación confirmada en mapa",
+        address: newAddress || "Ubicación confirmada",
         salary: newSalary,
         schedule: newSchedule,
         description: newDesc,
@@ -512,7 +483,6 @@ export default function App() {
         createdAt: serverTimestamp()
       });
 
-      // Limpiar campos
       setNewTitle(''); setNewCompany(''); setNewAddress('');
       setNewSalary(''); setNewSchedule(''); setNewDesc('');
       setBusinessLogo(null);
@@ -525,7 +495,6 @@ export default function App() {
     }
   };
 
-  // GUARDAR MATCH EN FIREBASE
   const handleLike = async (item) => {
     setLastMatch(item);
     setShowMatchModal(true);
@@ -538,7 +507,7 @@ export default function App() {
         createdAt: serverTimestamp()
       });
     } catch (err) {
-      console.error("Error al registrar match en Firebase:", err);
+      console.error("Error al registrar match:", err);
     }
 
     if (userRole === 'seeker') setJobIndex(jobIndex + 1);
@@ -550,7 +519,6 @@ export default function App() {
     else setCandidateIndex(candidateIndex + 1);
   };
 
-  // Filtrado de vacantes
   const filteredJobs = jobs.filter(job => {
     if (filterType !== 'Todos' && job.schedule && !job.schedule.toLowerCase().includes(filterType.toLowerCase())) return false;
     if (userCoords && job.lat && job.lng && filterDistance < 20) {
@@ -563,7 +531,6 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 shadow-2xl relative overflow-hidden">
       
-      {/* MODAL PICKER DE MAPA */}
       {showMapPicker && (
         <MapPickerModal 
           initialCoords={selectedCoords}
@@ -573,16 +540,10 @@ export default function App() {
         />
       )}
 
-      {/* ANIMACIÓN DE TRANSICIÓN */}
-      <div 
-        className={`fixed inset-0 pointer-events-none z-50 transition-all duration-300 ease-out flex items-center justify-center ${
-          isTransitioning ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
-        }`}
-      >
+      <div className={`fixed inset-0 pointer-events-none z-50 transition-all duration-300 ease-out flex items-center justify-center ${isTransitioning ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
         <div className="w-96 h-96 bg-gradient-to-tr from-indigo-500/30 to-violet-500/30 backdrop-blur-xl rounded-full animate-ping"></div>
       </div>
 
-      {/* HEADER */}
       {currentPage !== 'landing' && (
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30">
           <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo('explore', userRole)}>
@@ -599,88 +560,57 @@ export default function App() {
               const nextRole = userRole === 'seeker' ? 'business' : 'seeker';
               navigateTo('explore', nextRole);
             }}
-            className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 hover:scale-105 transition active:scale-95 flex items-center space-x-1 shadow-sm"
+            className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 hover:scale-105 transition flex items-center space-x-1 shadow-sm"
           >
-            {userRole === 'seeker' ? <span>👤 Soy Buscador</span> : <span>🏪 Modo Negocio</span>}
+            {userRole === 'seeker' ? <span>👤 Buscador</span> : <span>🏪 Modo Negocio</span>}
           </button>
         </header>
       )}
 
-      {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 pb-20">
         
-        {/* LANDING PAGE */}
         {currentPage === 'landing' && (
           <div className="p-6 flex flex-col items-center justify-between min-h-screen bg-gradient-to-b from-indigo-600 via-indigo-700 to-violet-800 text-white text-center relative overflow-hidden">
-            <div className="absolute top-10 left-5 w-32 h-32 bg-white/10 rounded-full blur-2xl animate-pulse"></div>
-            <div className="absolute bottom-20 right-5 w-40 h-40 bg-violet-400/20 rounded-full blur-3xl animate-pulse"></div>
-
             <div className="my-auto space-y-6 pt-10 z-10">
               <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-inner border border-white/20">
                 ⚡
               </div>
               <h1 className="text-4xl font-black tracking-tight leading-tight">ChambaCerca</h1>
               <p className="text-indigo-100 text-sm max-w-xs mx-auto leading-relaxed">
-                Empleos e interactividad local en tiempo real con datos persistentes en la nube.
+                Conecta empleos locales y candidatos en tiempo real.
               </p>
 
               <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
                 <button 
                   onClick={() => navigateTo('explore', 'seeker')}
-                  className="w-full bg-white text-indigo-700 font-bold py-3.5 px-6 rounded-2xl shadow-lg hover:scale-105 transition active:scale-95 flex items-center justify-center space-x-2"
+                  className="w-full bg-white text-indigo-700 font-bold py-3.5 px-6 rounded-2xl shadow-lg hover:scale-105 transition flex items-center justify-center space-x-2"
                 >
                   <Search size={18} />
                   <span>Busco Empleo</span>
                 </button>
                 <button 
                   onClick={() => navigateTo('explore', 'business')}
-                  className="w-full bg-indigo-500/30 backdrop-blur-md text-white font-semibold py-3.5 px-6 rounded-2xl border border-white/30 hover:bg-white/20 transition active:scale-95 flex items-center justify-center space-x-2"
+                  className="w-full bg-indigo-500/30 backdrop-blur-md text-white font-semibold py-3.5 px-6 rounded-2xl border border-white/30 hover:bg-white/20 transition flex items-center justify-center space-x-2"
                 >
                   <Building size={18} />
-                  <span>Soy Negocio (Ver Candidatos)</span>
+                  <span>Soy Negocio (Ver Perfiles)</span>
                 </button>
               </div>
             </div>
-            <div className="text-xs text-indigo-200/70 pb-4 z-10">ChambaCerca 2026 • Datos Persistentes</div>
           </div>
         )}
 
-        {/* EXPLORAR */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-2">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-2 text-xs font-semibold text-slate-600">
-                  <Navigation size={14} className="text-indigo-600 animate-pulse" />
-                  <span>{geoStatus}</span>
-                  <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                    {userRole === 'seeker' ? 'Viendo Vacantes' : 'Viendo Candidatos Reales'}
-                  </span>
-                </div>
-                {userRole === 'seeker' && (
-                  <button 
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="text-xs font-semibold text-indigo-600 flex items-center space-x-1 bg-indigo-50 px-3 py-1.5 rounded-xl"
-                  >
-                    <Sliders size={12} />
-                    <span>Filtros</span>
-                  </button>
-                )}
+            <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+              <div className="flex items-center space-x-2 text-xs font-semibold text-slate-600">
+                <Navigation size={14} className="text-indigo-600 animate-pulse" />
+                <span>{geoStatus}</span>
+                <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                  {userRole === 'seeker' ? 'Viendo Vacantes' : `Candidatos (${candidates.length})`}
+                </span>
               </div>
-
-              {showFilters && userRole === 'seeker' && (
-                <div className="pt-3 border-t border-slate-100 space-y-3 text-xs">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Radio máximo: {filterDistance} km</label>
-                    <input 
-                      type="range" min="1" max="20" value={filterDistance} 
-                      onChange={(e) => setFilterDistance(Number(e.target.value))}
-                      className="w-full accent-indigo-600"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {userRole === 'seeker' ? (
@@ -700,7 +630,7 @@ export default function App() {
                         <span>
                           {userCoords && filteredJobs[jobIndex].lat && filteredJobs[jobIndex].lng
                             ? `${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km`
-                            : 'Cerca de ti'}
+                            : 'Cerca'}
                         </span>
                       </div>
                     </div>
@@ -759,7 +689,7 @@ export default function App() {
                       )}
                       <div className="absolute top-3 right-3 bg-indigo-600 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
                         <UserCheck size={10} />
-                        <span>Candidato Disponible</span>
+                        <span>Disponible</span>
                       </div>
                     </div>
 
@@ -778,8 +708,8 @@ export default function App() {
                         <h3 className="font-bold text-slate-900 text-xl">
                           {candidates[candidateIndex].name || 'Candidato sin Nombre'}
                         </h3>
-                        <p className="text-xs font-semibold text-indigo-600">
-                          {candidates[candidateIndex].role || 'Buscando Empleo'} • {candidates[candidateIndex].age || 'Edad no especificada'}
+                        <p className="text-xs font-bold text-indigo-600">
+                          {candidates[candidateIndex].role || 'Buscando Empleo'} • {candidates[candidateIndex].age || 'Sin edad'}
                         </p>
                       </div>
 
@@ -820,7 +750,7 @@ export default function App() {
           </div>
         )}
 
-        {/* PERFIL CANDIDATO (GUARDADO EN LA NUBE) */}
+        {/* FORMULARIO EDITAR PERFIL */}
         {currentPage === 'profile' && (
           <div className="p-4 space-y-4">
             <div className="flex justify-between items-center">
@@ -828,7 +758,7 @@ export default function App() {
               {profileSavedNotice && (
                 <span className="text-xs text-emerald-600 font-bold flex items-center space-x-1 animate-bounce">
                   <Check size={14} />
-                  <span>¡Guardado en la nube!</span>
+                  <span>¡Sincronizado con la nube!</span>
                 </span>
               )}
             </div>
@@ -873,6 +803,16 @@ export default function App() {
                   />
                 </div>
                 <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Puesto Deseado / Título</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej. Barista / Cajero / Repartidor"
+                    value={candidateProfile.role || ''} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, role: e.target.value})} 
+                    className="w-full text-xs font-semibold text-indigo-600 border-b py-1 focus:outline-none focus:border-indigo-600" 
+                  />
+                </div>
+                <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase">Edad / Años</label>
                   <input 
                     type="text" 
@@ -909,14 +849,14 @@ export default function App() {
                   ) : (
                     <Save size={16} />
                   )}
-                  <span>{isSavingProfile ? 'Guardando...' : 'Guardar Perfil'}</span>
+                  <span>{isSavingProfile ? 'Guardando en la Nube...' : 'Guardar Perfil'}</span>
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* MATCHES EN TIEMPO REAL */}
+        {/* MATCHES */}
         {currentPage === 'matches' && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-xl text-slate-900">Tus Matches 🎉</h2>
@@ -945,7 +885,7 @@ export default function App() {
           </div>
         )}
 
-        {/* PUBLICAR VACANTE (NEGOCIO) */}
+        {/* PUBLICAR VACANTE */}
         {currentPage === 'post-job' && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-xl text-slate-900">Publicar vacante de tu Negocio 🏪</h2>
@@ -984,7 +924,7 @@ export default function App() {
                     className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 p-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition"
                   >
                     <MapIcon size={16} />
-                    <span>{selectedCoords ? '📌 Cambiar punto exacto en el mapa' : '🗺️ Seleccionar en el mapa'}</span>
+                    <span>{selectedCoords ? '📌 Cambiar punto exacto en el mapa' : '🗺️️ Seleccionar en el mapa'}</span>
                   </button>
 
                   <input 
@@ -995,13 +935,6 @@ export default function App() {
                     className="w-full bg-slate-50 border rounded-xl p-3 text-xs" 
                     required 
                   />
-                  
-                  {selectedCoords && (
-                    <p className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1">
-                      <Check size={12} />
-                      <span>Coordenadas fijadas: {selectedCoords.lat.toFixed(4)}, {selectedCoords.lng.toFixed(4)}</span>
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -1037,14 +970,14 @@ export default function App() {
             <div className="text-5xl">🎉</div>
             <h3 className="font-black text-2xl text-slate-900">¡Hicieron Match!</h3>
             <p className="text-xs text-slate-500">
-              Interés mutuo guardado en <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>.
+              Interés registrado en <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>.
             </p>
             <button onClick={() => setShowMatchModal(false)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs">Continuar</button>
           </div>
         </div>
       )}
 
-      {/* BARRA INFERIOR DE NAVEGACIÓN */}
+      {/* NAVEGACIÓN INFERIOR */}
       {currentPage !== 'landing' && (
         <nav className="fixed bottom-0 max-w-md w-full bg-white/90 backdrop-blur-md border-t border-slate-100 px-6 py-2.5 flex justify-around items-center z-30">
           <button onClick={() => navigateTo('explore')} className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
