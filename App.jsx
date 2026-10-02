@@ -3,14 +3,16 @@ import {
   MapPin, DollarSign, Clock, Heart, X, 
   MessageSquare, User, Building, Search, 
   Sliders, Navigation, Camera, Image as ImageIcon, Upload,
-  UserCheck, Crosshair, Map as MapIcon, Check, Save, Loader2
+  UserCheck, Crosshair, Map as MapIcon, Check, Save, Loader2,
+  Trash2, CheckCircle, ShieldAlert, Settings, Palette, Volume2,
+  Phone, Lock, Flag, EyeOff, Sparkles, Moon, Sun, FileText
 } from 'lucide-react';
 
 // Importaciones de Firebase
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, query,
-  doc, setDoc, getDoc, serverTimestamp, where 
+  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where 
 } from 'firebase/firestore';
 
 // Configuración de Firebase
@@ -27,7 +29,64 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Obtener o generar ID único de usuario persistente
+// SINTETIZADOR DE SONIDOS NATIVO (Web Audio API)
+const playSound = (type) => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+
+    if (type === 'like') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(400, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } else if (type === 'pass') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(250, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    } else if (type === 'match') {
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.15, ctx.currentTime + idx * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.2);
+        osc.start(ctx.currentTime + idx * 0.08);
+        osc.stop(ctx.currentTime + idx * 0.08 + 0.2);
+      });
+    } else if (type === 'click') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.05);
+    }
+  } catch (e) {
+    console.log("Audio not allowed yet", e);
+  }
+};
+
 const getUserId = () => {
   let uid = localStorage.getItem('chamba_user_id');
   if (!uid) {
@@ -37,7 +96,6 @@ const getUserId = () => {
   return uid;
 };
 
-// Haversine para distancia exacta en Km
 function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
   const R = 6371;
@@ -51,7 +109,6 @@ function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
   return c.toFixed(1);
 }
 
-// Convertir archivo de imagen a Base64
 const convertFileToBase64 = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -61,7 +118,6 @@ const convertFileToBase64 = (file) => {
   });
 };
 
-// Candidatos demo de respaldo
 const DEMO_CANDIDATES = [
   {
     id: 'cand-1',
@@ -261,6 +317,9 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState('landing'); 
   const [userRole, setUserRole] = useState('seeker'); 
   
+  // ESTADO DE TEMA (PERSONALIZACIÓN DE COLORES Y MODO OSCURO)
+  const [theme, setTheme] = useState('indigo'); // 'indigo', 'dark', 'emerald', 'sunset'
+
   const [jobs, setJobs] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -279,11 +338,16 @@ export default function App() {
   const [userCoords, setUserCoords] = useState(null);
   const [geoStatus, setGeoStatus] = useState('Obteniendo GPS...');
 
-  const [showFilters, setShowFilters] = useState(false);
-  const [filterDistance, setFilterDistance] = useState(15);
-  const [filterType, setFilterType] = useState('Todos');
+  // MODAL DE POLITICA Y REPORTE
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
 
-  // Perfil Candidato con campo ROLE
+  // SIMULADOR INICIO DE SESIÓN
+  const [phoneAuthNumber, setPhoneAuthNumber] = useState('');
+  const [isLoggedInPhone, setIsLoggedInPhone] = useState(false);
+
+  // Perfil Candidato
   const [candidateProfile, setCandidateProfile] = useState({
     name: '',
     age: '',
@@ -306,6 +370,7 @@ export default function App() {
   const [businessLogo, setBusinessLogo] = useState(null);
 
   const navigateTo = (page, role = userRole) => {
+    playSound('click');
     setIsTransitioning(true);
     setTimeout(() => {
       setUserRole(role);
@@ -313,7 +378,7 @@ export default function App() {
       setJobIndex(0);
       setCandidateIndex(0);
       setIsTransitioning(false);
-    }, 280);
+    }, 250);
   };
 
   useEffect(() => {
@@ -331,7 +396,7 @@ export default function App() {
     }
   }, []);
 
-  // 1. OBTENER MI PERFIL DESDE FIREBASE
+  // CARGAR MI PERFIL DESDE FIREBASE
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -361,7 +426,7 @@ export default function App() {
     fetchProfile();
   }, [currentUserId]);
 
-  // 2. ESCUCHAR TODOS LOS PERFILES REALES Y ORDENARLOS
+  // ESCUCHAR TODOS LOS PERFILES
   useEffect(() => {
     const q = query(collection(db, "perfiles"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -370,14 +435,12 @@ export default function App() {
         ...d.data()
       }));
 
-      // Ordenar por fecha de actualización (los más recientes primero)
       realProfiles.sort((a, b) => {
         const timeA = a.updatedAt?.seconds || 0;
         const timeB = b.updatedAt?.seconds || 0;
         return timeB - timeA;
       });
 
-      // Combinar con perfiles de demo al final como respaldo
       const combined = [
         ...realProfiles,
         ...DEMO_CANDIDATES.filter(demo => !realProfiles.some(real => real.id === demo.id))
@@ -392,7 +455,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 3. MATCHES
+  // MATCHES
   useEffect(() => {
     const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -403,7 +466,7 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUserId]);
 
-  // 4. VACANTES
+  // ESCUCHAR VACANTES
   useEffect(() => {
     const q = query(collection(db, "vacantes"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -418,8 +481,9 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // GUARDAR PERFIL EN FIRESTORE CON TIMESTAMP DE ORDENAMIENTO
+  // GUARDAR PERFIL
   const handleSaveProfile = async () => {
+    playSound('click');
     setIsSavingProfile(true);
     try {
       const docRef = doc(db, "perfiles", currentUserId);
@@ -436,6 +500,29 @@ export default function App() {
       console.error("Error al guardar perfil:", err);
       setIsSavingProfile(false);
       alert(`Error al guardar perfil: ${err.message}`);
+    }
+  };
+
+  // CAMBIAR ESTADO DE LA VACANTE (OCUPADA / ACTIVA)
+  const handleToggleJobStatus = async (jobId, currentStatus) => {
+    playSound('click');
+    const newStatus = currentStatus === 'filled' ? 'active' : 'filled';
+    try {
+      await updateDoc(doc(db, "vacantes", jobId), { status: newStatus });
+    } catch (err) {
+      alert("Error al actualizar la vacante");
+    }
+  };
+
+  // ELIMINAR VACANTE
+  const handleDeleteJob = async (jobId) => {
+    playSound('pass');
+    if (confirm("¿Seguro que deseas eliminar esta vacante permanentemente?")) {
+      try {
+        await deleteDoc(doc(db, "vacantes", jobId));
+      } catch (err) {
+        alert("Error al eliminar la vacante");
+      }
     }
   };
 
@@ -480,6 +567,7 @@ export default function App() {
         lng: selectedCoords.lng,
         logo: businessLogo || null,
         ownerId: currentUserId,
+        status: 'active', // 'active' u 'filled'
         createdAt: serverTimestamp()
       });
 
@@ -487,6 +575,7 @@ export default function App() {
       setNewSalary(''); setNewSchedule(''); setNewDesc('');
       setBusinessLogo(null);
 
+      playSound('match');
       alert('¡Vacante publicada exitosamente!');
       navigateTo('explore', 'seeker');
     } catch (err) {
@@ -496,8 +585,10 @@ export default function App() {
   };
 
   const handleLike = async (item) => {
+    playSound('like');
     setLastMatch(item);
     setShowMatchModal(true);
+    setTimeout(() => playSound('match'), 150);
 
     try {
       await addDoc(collection(db, "matches"), {
@@ -515,21 +606,43 @@ export default function App() {
   };
 
   const handlePass = () => {
+    playSound('pass');
     if (userRole === 'seeker') setJobIndex(jobIndex + 1);
     else setCandidateIndex(candidateIndex + 1);
   };
 
-  const filteredJobs = jobs.filter(job => {
-    if (filterType !== 'Todos' && job.schedule && !job.schedule.toLowerCase().includes(filterType.toLowerCase())) return false;
-    if (userCoords && job.lat && job.lng && filterDistance < 20) {
-      const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, job.lat, job.lng);
-      if (dist && parseFloat(dist) > filterDistance) return false;
+  const handleReportSubmit = () => {
+    alert("🚩 Reporte enviado con éxito. Nuestro equipo de seguridad revisará este perfil/vacante en un lapso de 24 horas.");
+    setShowReportModal(false);
+  };
+
+  // FILTRAR VACANTES (Oculta automáticamente las vacantes marcadas como "filled" / Ocupadas)
+  const filteredJobs = jobs.filter(job => job.status !== 'filled');
+
+  // MIS VACANTES CREADAS
+  const myPostedJobs = jobs.filter(job => job.ownerId === currentUserId);
+
+  // CLASES DE TEMA SELECCIONADO
+  const getThemeClasses = () => {
+    switch (theme) {
+      case 'dark':
+        return 'bg-slate-950 text-slate-100';
+      case 'emerald':
+        return 'bg-emerald-50 text-slate-800';
+      case 'sunset':
+        return 'bg-amber-50 text-slate-800';
+      default:
+        return 'bg-slate-50 text-slate-800';
     }
-    return true;
-  });
+  };
+
+  const getCardClasses = () => {
+    if (theme === 'dark') return 'bg-slate-900 border-slate-800 text-white';
+    return 'bg-white border-slate-100 text-slate-800';
+  };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 shadow-2xl relative overflow-hidden">
+    <div className={`max-w-md mx-auto min-h-screen flex flex-col font-sans shadow-2xl relative overflow-hidden transition-colors duration-300 ${getThemeClasses()}`}>
       
       {showMapPicker && (
         <MapPickerModal 
@@ -540,44 +653,55 @@ export default function App() {
         />
       )}
 
+      {/* TRANSICIÓN DINÁMICA */}
       <div className={`fixed inset-0 pointer-events-none z-50 transition-all duration-300 ease-out flex items-center justify-center ${isTransitioning ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-        <div className="w-96 h-96 bg-gradient-to-tr from-indigo-500/30 to-violet-500/30 backdrop-blur-xl rounded-full animate-ping"></div>
+        <div className="w-96 h-96 bg-indigo-500/30 backdrop-blur-xl rounded-full animate-ping"></div>
       </div>
 
       {currentPage !== 'landing' && (
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30">
+        <header className={`${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/80 border-slate-100'} backdrop-blur-md border-b px-4 py-3 flex justify-between items-center sticky top-0 z-30`}>
           <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo('explore', userRole)}>
             <div className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9 shadow-md shadow-indigo-200">
               ⚡
             </div>
-            <span className="font-black text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+            <span className="font-black text-xl tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
               ChambaCerca
             </span>
           </div>
 
-          <button 
-            onClick={() => {
-              const nextRole = userRole === 'seeker' ? 'business' : 'seeker';
-              navigateTo('explore', nextRole);
-            }}
-            className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 hover:scale-105 transition flex items-center space-x-1 shadow-sm"
-          >
-            {userRole === 'seeker' ? <span>👤 Buscador</span> : <span>🏪 Modo Negocio</span>}
-          </button>
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => navigateTo('settings')}
+              className={`p-2 rounded-full border transition ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}
+            >
+              <Settings size={16} />
+            </button>
+
+            <button 
+              onClick={() => {
+                const nextRole = userRole === 'seeker' ? 'business' : 'seeker';
+                navigateTo('explore', nextRole);
+              }}
+              className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 hover:scale-105 transition flex items-center space-x-1 shadow-sm"
+            >
+              {userRole === 'seeker' ? <span>👤 Buscador</span> : <span>🏪 Modo Negocio</span>}
+            </button>
+          </div>
         </header>
       )}
 
       <main className="flex-1 pb-20">
         
+        {/* LANDING PAGE */}
         {currentPage === 'landing' && (
           <div className="p-6 flex flex-col items-center justify-between min-h-screen bg-gradient-to-b from-indigo-600 via-indigo-700 to-violet-800 text-white text-center relative overflow-hidden">
             <div className="my-auto space-y-6 pt-10 z-10">
-              <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-inner border border-white/20">
+              <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-inner border border-white/20 animate-bounce">
                 ⚡
               </div>
               <h1 className="text-4xl font-black tracking-tight leading-tight">ChambaCerca</h1>
               <p className="text-indigo-100 text-sm max-w-xs mx-auto leading-relaxed">
-                Conecta empleos locales y candidatos en tiempo real.
+                El Tinder de los trabajos locales. Rápido, seguro y cerca de ti. 🚀
               </p>
 
               <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
@@ -593,22 +717,31 @@ export default function App() {
                   className="w-full bg-indigo-500/30 backdrop-blur-md text-white font-semibold py-3.5 px-6 rounded-2xl border border-white/30 hover:bg-white/20 transition flex items-center justify-center space-x-2"
                 >
                   <Building size={18} />
-                  <span>Soy Negocio (Ver Perfiles)</span>
+                  <span>Soy Negocio</span>
                 </button>
               </div>
             </div>
+
+            <button 
+              onClick={() => setShowPrivacyModal(true)} 
+              className="text-[11px] text-indigo-200 underline pb-4 flex items-center justify-center space-x-1"
+            >
+              <Lock size={12} />
+              <span>Políticas de Seguridad y Privacidad</span>
+            </button>
           </div>
         )}
 
+        {/* EXPLORAR / MATCHING */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-              <div className="flex items-center space-x-2 text-xs font-semibold text-slate-600">
-                <Navigation size={14} className="text-indigo-600 animate-pulse" />
+            <div className={`p-3 rounded-2xl shadow-sm border flex justify-between items-center ${getCardClasses()}`}>
+              <div className="flex items-center space-x-2 text-xs font-semibold">
+                <Navigation size={14} className="text-indigo-500 animate-pulse" />
                 <span>{geoStatus}</span>
                 <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                  {userRole === 'seeker' ? 'Viendo Vacantes' : `Candidatos (${candidates.length})`}
+                  {userRole === 'seeker' ? 'Vacantes Activas' : `Candidatos (${candidates.length})`}
                 </span>
               </div>
             </div>
@@ -617,7 +750,7 @@ export default function App() {
               loading ? (
                 <div className="text-center py-20 text-xs text-slate-500 animate-pulse">Cargando vacantes... 🌀</div>
               ) : jobIndex < filteredJobs.length ? (
-                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[480px]">
+                <div className={`rounded-3xl shadow-xl border overflow-hidden flex flex-col justify-between min-h-[480px] relative ${getCardClasses()}`}>
                   <div>
                     <div className="h-32 bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       {filteredJobs[jobIndex].logo ? (
@@ -625,6 +758,7 @@ export default function App() {
                       ) : (
                         <div className="text-4xl">🏪</div>
                       )}
+                      
                       <div className="absolute top-3 right-3 bg-emerald-500 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
                         <MapPin size={10} />
                         <span>
@@ -633,33 +767,42 @@ export default function App() {
                             : 'Cerca'}
                         </span>
                       </div>
+
+                      {/* BOTÓN REPORTAR VACANTE */}
+                      <button 
+                        onClick={() => { setReportTarget(filteredJobs[jobIndex]); setShowReportModal(true); }}
+                        className="absolute top-3 left-3 bg-slate-900/60 text-white p-1.5 rounded-full backdrop-blur-md"
+                        title="Reportar vacante falsa"
+                      >
+                        <Flag size={12} />
+                      </button>
                     </div>
 
                     <div className="p-5 space-y-3">
-                      <h3 className="font-bold text-slate-900 text-xl">{filteredJobs[jobIndex].title}</h3>
-                      <p className="text-xs font-semibold text-indigo-600">{filteredJobs[jobIndex].company}</p>
+                      <h3 className="font-bold text-xl">{filteredJobs[jobIndex].title}</h3>
+                      <p className="text-xs font-semibold text-indigo-500">{filteredJobs[jobIndex].company}</p>
                       
-                      <p className="text-[11px] text-slate-400 flex items-center space-x-1">
+                      <p className="text-[11px] opacity-60 flex items-center space-x-1">
                         <MapPin size={12} />
                         <span className="truncate">{filteredJobs[jobIndex].address}</span>
                       </p>
 
                       <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                        <div className="bg-slate-50 p-2 rounded-xl flex items-center space-x-2">
+                        <div className="bg-slate-50 border p-2 rounded-xl flex items-center space-x-2 text-slate-700">
                           <DollarSign size={14} className="text-emerald-500" />
                           <span>{filteredJobs[jobIndex].salary}</span>
                         </div>
-                        <div className="bg-slate-50 p-2 rounded-xl flex items-center space-x-2">
+                        <div className="bg-slate-50 border p-2 rounded-xl flex items-center space-x-2 text-slate-700">
                           <Clock size={14} className="text-amber-500" />
                           <span>{filteredJobs[jobIndex].schedule}</span>
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-600 leading-relaxed">{filteredJobs[jobIndex].description}</p>
+                      <p className="text-xs opacity-80 leading-relaxed">{filteredJobs[jobIndex].description}</p>
                     </div>
                   </div>
 
-                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-around">
+                  <div className="p-4 bg-slate-500/5 border-t flex justify-around">
                     <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
                       <X size={26} />
                     </button>
@@ -669,15 +812,15 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm my-10">
+                <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
                   <div className="text-4xl">🎉</div>
-                  <h3 className="font-bold text-slate-800">Has visto todas las vacantes</h3>
+                  <h3 className="font-bold">Has visto todas las vacantes activas</h3>
                   <button onClick={() => setJobIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Reiniciar Lista</button>
                 </div>
               )
             ) : (
               candidateIndex < candidates.length ? (
-                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[480px]">
+                <div className={`rounded-3xl shadow-xl border overflow-hidden flex flex-col justify-between min-h-[480px] relative ${getCardClasses()}`}>
                   <div>
                     <div className="h-28 bg-indigo-100 relative overflow-hidden flex items-center justify-center">
                       {candidates[candidateIndex].banner ? (
@@ -687,10 +830,14 @@ export default function App() {
                           Sin Foto de Portada
                         </div>
                       )}
-                      <div className="absolute top-3 right-3 bg-indigo-600 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
-                        <UserCheck size={10} />
-                        <span>Disponible</span>
-                      </div>
+                      
+                      <button 
+                        onClick={() => { setReportTarget(candidates[candidateIndex]); setShowReportModal(true); }}
+                        className="absolute top-3 left-3 bg-slate-900/60 text-white p-1.5 rounded-full backdrop-blur-md"
+                        title="Reportar candidato"
+                      >
+                        <Flag size={12} />
+                      </button>
                     </div>
 
                     <div className="px-5 relative flex justify-between items-end -mt-10 mb-3">
@@ -705,10 +852,10 @@ export default function App() {
 
                     <div className="p-5 pt-0 space-y-3">
                       <div>
-                        <h3 className="font-bold text-slate-900 text-xl">
+                        <h3 className="font-bold text-xl">
                           {candidates[candidateIndex].name || 'Candidato sin Nombre'}
                         </h3>
-                        <p className="text-xs font-bold text-indigo-600">
+                        <p className="text-xs font-bold text-indigo-500">
                           {candidates[candidateIndex].role || 'Buscando Empleo'} • {candidates[candidateIndex].age || 'Sin edad'}
                         </p>
                       </div>
@@ -721,15 +868,15 @@ export default function App() {
                       </div>
 
                       <div className="space-y-1">
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase">Sobre mí</h4>
-                        <p className="text-xs text-slate-600 leading-relaxed">
+                        <h4 className="text-[10px] font-bold opacity-40 uppercase">Sobre mí</h4>
+                        <p className="text-xs opacity-80 leading-relaxed">
                           {candidates[candidateIndex].bio || 'Sin descripción disponible.'}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-around">
+                  <div className="p-4 bg-slate-500/5 border-t flex justify-around">
                     <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
                       <X size={26} />
                     </button>
@@ -739,10 +886,10 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm my-10">
+                <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
                   <div className="text-4xl">👨‍🎓</div>
-                  <h3 className="font-bold text-slate-800">Has visto todos los prospectos</h3>
-                  <button onClick={() => setCandidateIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Volver a revisar prospectos</button>
+                  <h3 className="font-bold">Has visto todos los prospectos</h3>
+                  <button onClick={() => setCandidateIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Volver a revisar</button>
                 </div>
               )
             )}
@@ -750,20 +897,20 @@ export default function App() {
           </div>
         )}
 
-        {/* FORMULARIO EDITAR PERFIL */}
+        {/* PERFIL CANDIDATO */}
         {currentPage === 'profile' && (
           <div className="p-4 space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="font-black text-xl text-slate-900">Tu Perfil 👤</h2>
+              <h2 className="font-black text-xl">Tu Perfil 👤</h2>
               {profileSavedNotice && (
                 <span className="text-xs text-emerald-600 font-bold flex items-center space-x-1 animate-bounce">
                   <Check size={14} />
-                  <span>¡Sincronizado con la nube!</span>
+                  <span>¡Sincronizado!</span>
                 </span>
               )}
             </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden space-y-4 pb-5">
+            <div className={`rounded-3xl shadow-sm border overflow-hidden space-y-4 pb-5 ${getCardClasses()}`}>
               <div className="h-28 bg-indigo-100 relative flex items-center justify-center overflow-hidden">
                 {candidateProfile.banner ? (
                   <img src={candidateProfile.banner} alt="Banner" className="w-full h-full object-cover" />
@@ -794,48 +941,48 @@ export default function App() {
 
               <div className="px-5 space-y-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Nombre Completo</label>
+                  <label className="block text-[10px] font-bold opacity-40 uppercase">Nombre Completo</label>
                   <input 
                     type="text" 
                     value={candidateProfile.name || ''} 
                     onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})} 
-                    className="w-full font-bold text-slate-800 text-sm border-b py-1 focus:outline-none focus:border-indigo-600" 
+                    className="w-full font-bold text-sm border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Puesto Deseado / Título</label>
+                  <label className="block text-[10px] font-bold opacity-40 uppercase">Puesto Deseado / Título</label>
                   <input 
                     type="text" 
-                    placeholder="Ej. Barista / Cajero / Repartidor"
+                    placeholder="Ej. Barista / Cajero"
                     value={candidateProfile.role || ''} 
                     onChange={(e) => setCandidateProfile({...candidateProfile, role: e.target.value})} 
-                    className="w-full text-xs font-semibold text-indigo-600 border-b py-1 focus:outline-none focus:border-indigo-600" 
+                    className="w-full text-xs font-semibold text-indigo-500 border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Edad / Años</label>
+                  <label className="block text-[10px] font-bold opacity-40 uppercase">Edad</label>
                   <input 
                     type="text" 
                     value={candidateProfile.age || ''} 
                     onChange={(e) => setCandidateProfile({...candidateProfile, age: e.target.value})} 
-                    className="w-full text-xs text-slate-600 border-b py-1 focus:outline-none focus:border-indigo-600" 
+                    className="w-full text-xs border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Habilidades Clave</label>
+                  <label className="block text-[10px] font-bold opacity-40 uppercase">Habilidades Clave</label>
                   <input 
                     type="text" 
                     value={candidateProfile.skills || ''} 
                     onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})} 
-                    className="w-full text-xs text-slate-600 border-b py-1 focus:outline-none focus:border-indigo-600" 
+                    className="w-full text-xs border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Sobre ti</label>
+                  <label className="block text-[10px] font-bold opacity-40 uppercase">Sobre ti</label>
                   <textarea 
                     value={candidateProfile.bio || ''} 
                     onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})} 
-                    className="w-full text-xs text-slate-600 border rounded-xl p-2 h-20 mt-1 focus:outline-none focus:border-indigo-600"
+                    className="w-full text-xs border rounded-xl p-2 h-20 mt-1 bg-transparent focus:outline-none focus:border-indigo-600"
                   ></textarea>
                 </div>
 
@@ -849,33 +996,186 @@ export default function App() {
                   ) : (
                     <Save size={16} />
                   )}
-                  <span>{isSavingProfile ? 'Guardando en la Nube...' : 'Guardar Perfil'}</span>
+                  <span>{isSavingProfile ? 'Guardando...' : 'Guardar Perfil'}</span>
                 </button>
               </div>
             </div>
           </div>
         )}
 
+        {/* SECCIÓN "MIS VACANTES" (GESTIÓN DE EMPLEOS PARA NEGOCIOS) */}
+        {currentPage === 'my-jobs' && (
+          <div className="p-4 space-y-4">
+            <h2 className="font-black text-xl">Mis Vacantes Publicadas 🏪</h2>
+            <p className="text-xs opacity-60">Gestiona o desactiva vacantes para que no aparezcan en el buscador.</p>
+
+            {myPostedJobs.length === 0 ? (
+              <div className={`p-8 text-center rounded-3xl border space-y-3 ${getCardClasses()}`}>
+                <p className="text-xs">No has publicado vacantes aún.</p>
+                <button onClick={() => navigateTo('post-job')} className="bg-indigo-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl">Publicar Vacante</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {myPostedJobs.map((job) => (
+                  <div key={job.id} className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3 ${getCardClasses()}`}>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="font-bold text-sm">{job.title}</h4>
+                        <p className="text-xs text-indigo-500 font-medium">{job.company}</p>
+                        <p className="text-[10px] opacity-50 mt-1">{job.salary} • {job.schedule}</p>
+                      </div>
+                      
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${job.status === 'filled' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {job.status === 'filled' ? 'Ocupada / Oculta' : 'Activa'}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t">
+                      <button 
+                        onClick={() => handleToggleJobStatus(job.id, job.status)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 ${job.status === 'filled' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}
+                      >
+                        {job.status === 'filled' ? <CheckCircle size={14} /> : <EyeOff size={14} />}
+                        <span>{job.status === 'filled' ? 'Marcar Activa' : 'Marcar Ocupada'}</span>
+                      </button>
+
+                      <button 
+                        onClick={() => handleDeleteJob(job.id)}
+                        className="bg-rose-50 text-rose-600 border border-rose-200 p-2 rounded-xl text-xs font-bold"
+                        title="Eliminar vacante"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CONFIGURACIÓN Y TEMA */}
+        {currentPage === 'settings' && (
+          <div className="p-4 space-y-5">
+            <h2 className="font-black text-xl">Configuración y Seguridad ⚙️</h2>
+
+            {/* A. TEMA DE COLOR */}
+            <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
+              <div className="flex items-center space-x-2">
+                <Palette size={18} className="text-indigo-500" />
+                <h3 className="font-bold text-sm">Apariencia y Colores</h3>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button 
+                  onClick={() => setTheme('indigo')} 
+                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'indigo' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200'}`}
+                >
+                  <span> Indigo Classic</span>
+                  <div className="w-3 h-3 rounded-full bg-indigo-600"></div>
+                </button>
+
+                <button 
+                  onClick={() => setTheme('dark')} 
+                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'dark' ? 'border-purple-500 bg-slate-800 text-white' : 'border-slate-200'}`}
+                >
+                  <span> Modo Oscuro 🌙</span>
+                  <div className="w-3 h-3 rounded-full bg-slate-900 border"></div>
+                </button>
+
+                <button 
+                  onClick={() => setTheme('emerald')} 
+                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'emerald' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200'}`}
+                >
+                  <span> Esmeralda 🌿</span>
+                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                </button>
+
+                <button 
+                  onClick={() => setTheme('sunset')} 
+                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'sunset' ? 'border-amber-600 bg-amber-50 text-amber-700' : 'border-slate-200'}`}
+                >
+                  <span> Atardecer 🌅</span>
+                  <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                </button>
+              </div>
+            </div>
+
+            {/* B. VINCULAR TELÉFONO O CUENTA */}
+            <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
+              <div className="flex items-center space-x-2">
+                <Phone size={18} className="text-indigo-500" />
+                <h3 className="font-bold text-sm">Vincular Cuenta o Teléfono</h3>
+              </div>
+
+              <p className="text-xs opacity-60">Guarda tu perfil de forma permanente en la nube para usarlo en otros dispositivos.</p>
+
+              {isLoggedInPhone ? (
+                <div className="bg-emerald-50 text-emerald-700 p-3 rounded-2xl text-xs font-bold flex items-center justify-between">
+                  <span>Sincronizado con: {phoneAuthNumber}</span>
+                  <button onClick={() => setIsLoggedInPhone(false)} className="underline text-[10px]">Cerrar</button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input 
+                    type="tel" 
+                    placeholder="Número a 10 dígitos" 
+                    value={phoneAuthNumber}
+                    onChange={(e) => setPhoneAuthNumber(e.target.value)}
+                    className="flex-1 bg-slate-100 border p-2.5 rounded-xl text-xs outline-none text-slate-800"
+                  />
+                  <button 
+                    onClick={() => {
+                      if (phoneAuthNumber.length >= 10) {
+                        setIsLoggedInPhone(true);
+                        playSound('match');
+                      } else alert("Ingresa un número válido de 10 dígitos");
+                    }} 
+                    className="bg-indigo-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* C. POLITICAS DE SEGURIDAD */}
+            <div className={`p-4 rounded-3xl border space-y-2 ${getCardClasses()}`}>
+              <button 
+                onClick={() => setShowPrivacyModal(true)}
+                className="w-full flex items-center justify-between text-xs font-bold py-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <ShieldAlert size={16} className="text-indigo-500" />
+                  <span>Política Antifraude y Perfiles Falsos</span>
+                </div>
+                <span>→</span>
+              </button>
+            </div>
+
+          </div>
+        )}
+
         {/* MATCHES */}
         {currentPage === 'matches' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl text-slate-900">Tus Matches 🎉</h2>
+            <h2 className="font-black text-xl">Tus Matches 🎉</h2>
             {matches.length === 0 ? (
-              <p className="text-xs text-slate-500 py-10 text-center">Aún no tienes contactos guardados.</p>
+              <p className="text-xs opacity-50 py-10 text-center">Aún no tienes contactos guardados.</p>
             ) : (
               <div className="space-y-3">
                 {matches.map((item, idx) => (
-                  <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                  <div key={idx} className={`p-4 rounded-2xl border flex items-center justify-between ${getCardClasses()}`}>
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center text-xl">
                         {item.logo || item.avatar ? <img src={item.logo || item.avatar} alt="Logo" className="w-full h-full object-cover" /> : '💼'}
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm text-slate-800">{item.title || item.name}</h4>
-                        <p className="text-xs text-slate-500">{item.company || item.role || item.skills}</p>
+                        <h4 className="font-bold text-sm">{item.title || item.name}</h4>
+                        <p className="text-xs opacity-60">{item.company || item.role || item.skills}</p>
                       </div>
                     </div>
-                    <button className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
+                    <button onClick={() => alert(`Iniciando chat con ${item.title || item.name}`)} className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
                       <MessageSquare size={16} />
                     </button>
                   </div>
@@ -888,10 +1188,10 @@ export default function App() {
         {/* PUBLICAR VACANTE */}
         {currentPage === 'post-job' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl text-slate-900">Publicar vacante de tu Negocio 🏪</h2>
-            <form onSubmit={handlePostJob} className="bg-white p-5 rounded-3xl shadow-sm border space-y-4">
+            <h2 className="font-black text-xl">Publicar vacante 🏪</h2>
+            <form onSubmit={handlePostJob} className={`p-5 rounded-3xl border space-y-4 ${getCardClasses()}`}>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Imagen o Logo del Negocio</label>
+                <label className="block text-xs font-bold mb-1 opacity-70">Imagen / Logo</label>
                 <div className="flex items-center space-x-3">
                   <div className="w-16 h-16 rounded-2xl bg-slate-100 border overflow-hidden flex items-center justify-center">
                     {businessLogo ? <img src={businessLogo} alt="Preview" className="w-full h-full object-cover" /> : <ImageIcon className="text-slate-400" size={24} />}
@@ -905,18 +1205,17 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Puesto</label>
-                <input type="text" placeholder="Ej. Barista" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
+                <label className="block text-xs font-bold mb-1 opacity-70">Puesto</label>
+                <input type="text" placeholder="Ej. Barista" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Nombre del Negocio</label>
-                <input type="text" placeholder="Ej. Café El Roble" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
+                <label className="block text-xs font-bold mb-1 opacity-70">Nombre del Negocio</label>
+                <input type="text" placeholder="Ej. Café El Roble" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Ubicación del Negocio</label>
-                
+                <label className="block text-xs font-bold mb-1 opacity-70">Ubicación del Negocio</label>
                 <div className="space-y-2">
                   <button 
                     type="button"
@@ -924,15 +1223,15 @@ export default function App() {
                     className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 p-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition"
                   >
                     <MapIcon size={16} />
-                    <span>{selectedCoords ? '📌 Cambiar punto exacto en el mapa' : '🗺️️ Seleccionar en el mapa'}</span>
+                    <span>{selectedCoords ? '📌 Cambiar punto en el mapa' : '🗺 Seleccionar en el mapa'}</span>
                   </button>
 
                   <input 
                     type="text" 
-                    placeholder="Dirección o referencia corta" 
+                    placeholder="Dirección o referencia" 
                     value={newAddress} 
                     onChange={(e) => setNewAddress(e.target.value)} 
-                    className="w-full bg-slate-50 border rounded-xl p-3 text-xs" 
+                    className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" 
                     required 
                   />
                 </div>
@@ -940,18 +1239,18 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Salario</label>
-                  <input type="text" placeholder="Ej. $8,000/mes" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
+                  <label className="block text-xs font-bold mb-1 opacity-70">Salario</label>
+                  <input type="text" placeholder="Ej. $8,000/mes" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Horario</label>
-                  <input type="text" placeholder="Ej. Medio Tiempo" value={newSchedule} onChange={(e) => setNewSchedule(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
+                  <label className="block text-xs font-bold mb-1 opacity-70">Horario</label>
+                  <input type="text" placeholder="Ej. Medio Tiempo" value={newSchedule} onChange={(e) => setNewSchedule(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Descripción</label>
-                <textarea placeholder="Descripción del puesto..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs h-20" required></textarea>
+                <label className="block text-xs font-bold mb-1 opacity-70">Descripción</label>
+                <textarea placeholder="Descripción del puesto..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full border rounded-xl p-3 text-xs h-20 bg-slate-500/5 outline-none" required></textarea>
               </div>
 
               <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition">
@@ -963,41 +1262,92 @@ export default function App() {
 
       </main>
 
-      {/* POPUP DE MATCH */}
-      {showMatchModal && lastMatch && (
+      {/* POPUP DE REPORTE DE SEGURIDAD */}
+      {showReportModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 text-center space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="text-5xl">🎉</div>
-            <h3 className="font-black text-2xl text-slate-900">¡Hicieron Match!</h3>
+          <div className="bg-white text-slate-800 rounded-3xl p-5 space-y-4 max-w-xs w-full shadow-2xl">
+            <div className="flex items-center space-x-2 text-rose-600 font-bold text-sm">
+              <Flag size={18} />
+              <span>Reportar Infracción</span>
+            </div>
             <p className="text-xs text-slate-500">
-              Interés registrado en <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>.
+              ¿Por qué deseas reportar a <span className="font-bold">{reportTarget?.title || reportTarget?.name}</span>?
             </p>
-            <button onClick={() => setShowMatchModal(false)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs">Continuar</button>
+            <div className="space-y-2 text-xs">
+              <button onClick={handleReportSubmit} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🚫 Perfil o empleo falso / fraude</button>
+              <button onClick={handleReportSubmit} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🔞 Contenido inapropiado</button>
+              <button onClick={handleReportSubmit} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">⚠️ Spam o información engañosa</button>
+            </div>
+            <button onClick={() => setShowReportModal(false)} className="w-full bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL POLITICA DE SEGURIDAD Y PRIVACIDAD */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-sm w-full shadow-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="font-bold text-sm flex items-center space-x-2 text-indigo-600">
+                <ShieldAlert size={18} />
+                <span>Políticas de Seguridad</span>
+              </h3>
+              <button onClick={() => setShowPrivacyModal(false)} className="p-1 text-slate-400"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
+              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda estrictamente prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
+              <p><strong>2. Protección de Datos Personales:</strong> ChambaCerca no comparte tu número de teléfono ni tus coordenadas exactas sin tu consentimiento directo al hacer match.</p>
+              <p><strong>3. Verificación de Negocios:</strong> Los negocios deben utilizar direcciones geolocalizadas reales para garantizar ofertas de trabajo seguras para los jóvenes.</p>
+            </div>
+
+            <button onClick={() => setShowPrivacyModal(false)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs">Entendido</button>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP MATCH */}
+      {showMatchModal && lastMatch && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white text-slate-800 rounded-3xl p-6 text-center space-y-4 max-w-xs w-full shadow-2xl">
+            <div className="text-5xl animate-bounce">🎉</div>
+            <h3 className="font-black text-2xl bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">¡Hicieron Match!</h3>
+            <p className="text-xs text-slate-500">
+              Interés registrado con <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>.
+            </p>
+            <button onClick={() => setShowMatchModal(false)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg">Continuar Explorando</button>
           </div>
         </div>
       )}
 
       {/* NAVEGACIÓN INFERIOR */}
       {currentPage !== 'landing' && (
-        <nav className="fixed bottom-0 max-w-md w-full bg-white/90 backdrop-blur-md border-t border-slate-100 px-6 py-2.5 flex justify-around items-center z-30">
-          <button onClick={() => navigateTo('explore')} className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
+        <nav className={`fixed bottom-0 max-w-md w-full border-t px-4 py-2.5 flex justify-around items-center z-30 transition-colors ${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100'}`}>
+          <button onClick={() => navigateTo('explore')} className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
             <Search size={20} />
             <span className="text-[10px] font-bold">Explorar</span>
           </button>
 
           {userRole === 'business' ? (
-            <button onClick={() => navigateTo('post-job')} className={`flex flex-col items-center space-y-1 ${currentPage === 'post-job' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
-              <Building size={20} />
-              <span className="text-[10px] font-bold">Publicar</span>
-            </button>
+            <>
+              <button onClick={() => navigateTo('my-jobs')} className={`flex flex-col items-center space-y-1 ${currentPage === 'my-jobs' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
+                <Building size={20} />
+                <span className="text-[10px] font-bold">Mis Vacantes</span>
+              </button>
+
+              <button onClick={() => navigateTo('post-job')} className={`flex flex-col items-center space-y-1 ${currentPage === 'post-job' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
+                <Sparkles size={20} />
+                <span className="text-[10px] font-bold">Publicar</span>
+              </button>
+            </>
           ) : (
-            <button onClick={() => navigateTo('profile')} className={`flex flex-col items-center space-y-1 ${currentPage === 'profile' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
+            <button onClick={() => navigateTo('profile')} className={`flex flex-col items-center space-y-1 ${currentPage === 'profile' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
               <User size={20} />
               <span className="text-[10px] font-bold">Perfil</span>
             </button>
           )}
 
-          <button onClick={() => navigateTo('matches')} className={`flex flex-col items-center space-y-1 ${currentPage === 'matches' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
+          <button onClick={() => navigateTo('matches')} className={`flex flex-col items-center space-y-1 ${currentPage === 'matches' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
             <MessageSquare size={20} />
             <span className="text-[10px] font-bold">Matches</span>
           </button>
