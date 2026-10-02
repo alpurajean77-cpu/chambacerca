@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Briefcase, MapPin, DollarSign, Clock, Filter, Heart, X, Star, 
   MessageSquare, User, Building, ShieldCheck, Search, 
-  AlertTriangle, Sparkles, Sliders, Users, CheckCircle, Navigation
+  AlertTriangle, Sparkles, Sliders, Users, CheckCircle, Navigation,
+  Camera, Image as ImageIcon, Upload
 } from 'lucide-react';
 
 // Importaciones de Firebase
@@ -40,42 +41,23 @@ function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
   return distance.toFixed(1); // Devuelve distancia con 1 decimal (Ej. 1.4)
 }
 
-// Candidatos de prueba para el modo Negocio
-const SAMPLE_CANDIDATES = [
-  {
-    id: 'c1',
-    name: 'Alex González',
-    age: '20 años',
-    zone: 'Col. Juárez (A 1.5 km)',
-    skills: ['Atención al cliente', 'Caja / Cobro', 'Cafetería'],
-    availability: 'Medio tiempo (Mañanas)',
-    experience: 'Sin experiencia previa',
-    bio: 'Estudiante con muchas ganas de trabajar en atención al cliente o cafeterías. Puntual y proactivo.',
-    avatar: '👨‍🎓'
-  },
-  {
-    id: 'c2',
-    name: 'Mariana López',
-    age: '19 años',
-    zone: 'Centro (A 2.1 km)',
-    skills: ['Redes sociales', 'Canva', 'Fotografía móvil'],
-    availability: 'Fin de semana / Flexible',
-    experience: 'Manejo de redes sociales',
-    bio: 'Me apasiona crear contenido visual para negocios locales. Busco apoyo en ventas o marketing.',
-    avatar: '👩‍🎨'
-  }
-];
+// Convertir archivo de imagen a Base64
+const convertFileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (error) => reject(error);
+  });
+};
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('landing'); 
   const [userRole, setUserRole] = useState('seeker'); 
   const [jobs, setJobs] = useState([]);
-  const [candidates] = useState(SAMPLE_CANDIDATES);
   const [loading, setLoading] = useState(true);
   
   const [jobIndex, setJobIndex] = useState(0);
-  const [candidateIndex, setCandidateIndex] = useState(0);
-  
   const [matches, setMatches] = useState([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [lastMatch, setLastMatch] = useState(null);
@@ -86,8 +68,18 @@ export default function App() {
 
   // Estados de Filtro
   const [showFilters, setShowFilters] = useState(false);
-  const [filterDistance, setFilterDistance] = useState(10);
+  const [filterDistance, setFilterDistance] = useState(15);
   const [filterType, setFilterType] = useState('Todos');
+
+  // Perfil del Candidato (con Fotos)
+  const [candidateProfile, setCandidateProfile] = useState({
+    name: 'Alex González',
+    age: '20 años',
+    skills: 'Atención al cliente, Caja, Cafetería',
+    bio: 'Estudiante enfocado en atención al cliente con disponibilidad inmediata.',
+    avatar: null,
+    banner: null
+  });
 
   // Campos para formulario de publicar vacante (Del Negocio)
   const [newTitle, setNewTitle] = useState('');
@@ -96,9 +88,8 @@ export default function App() {
   const [newSalary, setNewSalary] = useState('');
   const [newSchedule, setNewSchedule] = useState('');
   const [newDesc, setNewDesc] = useState('');
-  // Coordenadas fijas por defecto del negocio (Ejemplo: Centro)
-  const [businessLat, setBusinessLat] = useState(19.4326);
-  const [businessLng, setBusinessLng] = useState(-99.1332);
+  const [businessLogo, setBusinessLogo] = useState(null);
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   // Obtenemos la ubicación GPS en tiempo real del candidato
   useEffect(() => {
@@ -109,16 +100,16 @@ export default function App() {
             lat: position.coords.latitude,
             lng: position.coords.longitude
           });
-          setGeoStatus('Ubicación activa');
+          setGeoStatus('GPS Activo 📍');
         },
         (error) => {
           console.warn("Geolocalización no otorgada:", error);
-          setGeoStatus('Sin permiso GPS (Mostrando ubicación estimada)');
+          setGeoStatus('Ubicación general');
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      setGeoStatus('Geolocalización no soportada por el navegador');
+      setGeoStatus('GPS no soportado');
     }
   }, []);
 
@@ -140,20 +131,70 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Guardar vacante en Firebase con la dirección fija e independiente del negocio
+  // Handler para subir fotos del perfil de candidato
+  const handleProfileImageUpload = async (e, type) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const base64 = await convertFileToBase64(file);
+        setCandidateProfile(prev => ({ ...prev, [type]: base64 }));
+      } catch (err) {
+        alert("Error al procesar la imagen.");
+      }
+    }
+  };
+
+  // Handler para subir foto del negocio
+  const handleBusinessLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const base64 = await convertFileToBase64(file);
+        setBusinessLogo(base64);
+      } catch (err) {
+        alert("Error al cargar el logo del negocio.");
+      }
+    }
+  };
+
+  // Convertir dirección escrita en coordenadas lat/lng mediante Nominatim
+  const geocodeAddress = async (addressText) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressText)}`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        };
+      }
+    } catch (error) {
+      console.warn("Error en la geocodificación:", error);
+    }
+    // Fallback a ubicación del candidato o centro por defecto si no encuentra la calle exacta
+    return userCoords || { lat: 19.4326, lng: -99.1332 };
+  };
+
+  // Guardar vacante en Firebase con geocodificación real
   const handlePostJob = async (e) => {
     e.preventDefault();
+    setIsGeocoding(true);
+
     try {
+      const coords = await geocodeAddress(newAddress);
+
       await addDoc(collection(db, "vacantes"), {
         title: newTitle,
         company: newCompany,
-        address: newAddress || 'Dirección del negocio',
+        address: newAddress,
         salary: newSalary,
         schedule: newSchedule,
         description: newDesc,
-        lat: parseFloat(businessLat),
-        lng: parseFloat(businessLng),
-        logo: '🏪',
+        lat: coords.lat,
+        lng: coords.lng,
+        logo: businessLogo || null,
         verified: true,
         createdAt: serverTimestamp()
       });
@@ -164,33 +205,27 @@ export default function App() {
       setNewSalary('');
       setNewSchedule('');
       setNewDesc('');
+      setBusinessLogo(null);
+      setIsGeocoding(false);
 
-      alert('¡Vacante publicada con la ubicación física fija de tu negocio!');
+      alert('¡Vacante publicada exitosamente con ubicación geográfica calculada!');
       setCurrentPage('explore');
     } catch (error) {
       console.error("Error al publicar vacante: ", error);
+      setIsGeocoding(false);
       alert('Error al publicar vacante.');
     }
   };
 
-  const handleLike = (item, type) => {
-    setMatches([...matches, { ...item, type }]);
-    setLastMatch({ ...item, type });
+  const handleLike = (item) => {
+    setMatches([...matches, item]);
+    setLastMatch(item);
     setShowMatchModal(true);
-
-    if (type === 'job') {
-      setJobIndex(jobIndex + 1);
-    } else {
-      setCandidateIndex(candidateIndex + 1);
-    }
+    setJobIndex(jobIndex + 1);
   };
 
-  const handlePass = (type) => {
-    if (type === 'job') {
-      setJobIndex(jobIndex + 1);
-    } else {
-      setCandidateIndex(candidateIndex + 1);
-    }
+  const handlePass = () => {
+    setJobIndex(jobIndex + 1);
   };
 
   // Filtrado de vacantes por distancia y horario
@@ -198,8 +233,7 @@ export default function App() {
     if (filterType !== 'Todos' && job.schedule && !job.schedule.toLowerCase().includes(filterType.toLowerCase())) {
       return false;
     }
-    // Filtrar por distancia si el usuario tiene GPS activo
-    if (userCoords && job.lat && job.lng) {
+    if (userCoords && job.lat && job.lng && filterDistance < 20) {
       const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, job.lat, job.lng);
       if (dist && parseFloat(dist) > filterDistance) {
         return false;
@@ -214,7 +248,7 @@ export default function App() {
       {/* HEADER */}
       {currentPage !== 'landing' && (
         <header className="bg-white border-b border-slate-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30">
-          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentPage(userRole === 'seeker' ? 'explore' : 'candidates')}>
+          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentPage('explore')}>
             <div className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9">
               ⚡
             </div>
@@ -227,11 +261,11 @@ export default function App() {
             onClick={() => {
               const newRole = userRole === 'seeker' ? 'business' : 'seeker';
               setUserRole(newRole);
-              setCurrentPage(newRole === 'seeker' ? 'explore' : 'candidates');
+              setCurrentPage(newRole === 'seeker' ? 'explore' : 'post-job');
             }}
             className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 flex items-center space-x-1"
           >
-            {userRole === 'seeker' ? <span>👤 Busco Chamba</span> : <span>🏪 Busco Personal</span>}
+            {userRole === 'seeker' ? <span>👤 Busco Chamba</span> : <span>🏪 Soy Negocio</span>}
           </button>
         </header>
       )}
@@ -250,7 +284,7 @@ export default function App() {
                 ChambaCerca
               </h1>
               <p className="text-indigo-100 text-sm max-w-xs mx-auto leading-relaxed">
-                Encuentra empleo local midiendo la distancia real desde tu ubicación física.
+                Empleos locales geolocalizados con fotos de perfil y coincidencia instantánea.
               </p>
 
               <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
@@ -262,15 +296,15 @@ export default function App() {
                   <span>Buscar Empleo (Jóvenes)</span>
                 </button>
                 <button 
-                  onClick={() => { setUserRole('business'); setCurrentPage('candidates'); }}
+                  onClick={() => { setUserRole('business'); setCurrentPage('post-job'); }}
                   className="w-full bg-indigo-500/30 backdrop-blur-md text-white font-semibold py-3.5 px-6 rounded-2xl border border-white/30 hover:bg-white/20 transition active:scale-95 flex items-center justify-center space-x-2"
                 >
                   <Building size={18} />
-                  <span>Soy Negocio (Buscar Personal)</span>
+                  <span>Soy Negocio (Publicar)</span>
                 </button>
               </div>
             </div>
-            <div className="text-xs text-indigo-200/70 pb-4">Conectado a Firestore Cloud Database</div>
+            <div className="text-xs text-indigo-200/70 pb-4">ChambaCerca 2026 • Ultra-Proximidad</div>
           </div>
         )}
 
@@ -311,7 +345,7 @@ export default function App() {
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Tipo de jornada:</label>
                     <div className="flex space-x-2">
-                      {['Todos', 'Medio tiempo', 'Fin de semana'].map((type) => (
+                      {['Todos', 'Medio tiempo', 'Tiempo Completo'].map((type) => (
                         <button
                           key={type}
                           onClick={() => setFilterType(type)}
@@ -337,74 +371,79 @@ export default function App() {
             ) : filteredJobs.length === 0 ? (
               <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm border border-slate-100 my-10">
                 <div className="text-4xl">🏪</div>
-                <h3 className="font-bold text-lg text-slate-800">No hay vacantes en esta zona o rango</h3>
-                <p className="text-xs text-slate-500">Prueba ampliar el filtro de distancia o publicar una vacante.</p>
+                <h3 className="font-bold text-lg text-slate-800">No hay vacantes en este rango</h3>
+                <p className="text-xs text-slate-500">Aumenta el radio en los filtros para explorar más zona.</p>
               </div>
             ) : jobIndex < filteredJobs.length ? (
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[460px]">
-                <div className="p-5 space-y-4">
-                  
-                  {/* CÁLCULO DE DISTANCIA REAL */}
-                  <div className="flex justify-between items-center">
-                    <div className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold flex items-center space-x-1">
-                      <MapPin size={12} />
+              <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[480px]">
+                <div>
+                  {/* IMAGEN DE BANNER/LOGO DEL NEGOCIO */}
+                  <div className="h-32 bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                    {filteredJobs[jobIndex].logo ? (
+                      <img 
+                        src={filteredJobs[jobIndex].logo} 
+                        alt="Logo del negocio" 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <div className="text-4xl">🏪</div>
+                    )}
+                    <div className="absolute top-3 right-3 bg-emerald-500 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
+                      <MapPin size={10} />
                       <span>
                         {userCoords && filteredJobs[jobIndex].lat && filteredJobs[jobIndex].lng
-                          ? `A ${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km de tu posición`
-                          : filteredJobs[jobIndex].address || 'Ubicación local'}
+                          ? `${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km de ti`
+                          : 'Ubicación local'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
-                      {filteredJobs[jobIndex].logo || '💼'}
-                    </div>
+                  <div className="p-5 space-y-4">
                     <div>
-                      <h3 className="font-bold text-slate-900 text-lg leading-snug">
+                      <h3 className="font-bold text-slate-900 text-xl leading-snug">
                         {filteredJobs[jobIndex].title}
                       </h3>
-                      <p className="text-xs font-medium text-slate-500">
+                      <p className="text-xs font-semibold text-indigo-600">
                         {filteredJobs[jobIndex].company}
                       </p>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-slate-50 p-2.5 rounded-xl flex items-center space-x-2 text-slate-700">
-                      <DollarSign size={14} className="text-emerald-500" />
-                      <span className="font-medium">{filteredJobs[jobIndex].salary}</span>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-slate-50 p-2.5 rounded-xl flex items-center space-x-2 text-slate-700">
+                        <DollarSign size={14} className="text-emerald-500" />
+                        <span className="font-medium">{filteredJobs[jobIndex].salary}</span>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-xl flex items-center space-x-2 text-slate-700">
+                        <Clock size={14} className="text-amber-500" />
+                        <span className="font-medium">{filteredJobs[jobIndex].schedule}</span>
+                      </div>
                     </div>
-                    <div className="bg-slate-50 p-2.5 rounded-xl flex items-center space-x-2 text-slate-700">
-                      <Clock size={14} className="text-amber-500" />
-                      <span className="font-medium">{filteredJobs[jobIndex].schedule}</span>
+
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dirección física</h4>
+                      <p className="text-xs text-slate-700 font-medium">
+                        📍 {filteredJobs[jobIndex].address || 'Dirección registrada'}
+                      </p>
                     </div>
-                  </div>
 
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dirección fija del negocio</h4>
-                    <p className="text-xs text-slate-700 font-medium">
-                      📍 {filteredJobs[jobIndex].address || 'Dirección registrada'}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Descripción</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      {filteredJobs[jobIndex].description}
-                    </p>
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Descripción</h4>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {filteredJobs[jobIndex].description}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-around items-center">
                   <button 
-                    onClick={() => handlePass('job')}
+                    onClick={handlePass}
                     className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border border-slate-100"
                   >
                     <X size={26} />
                   </button>
                   <button 
-                    onClick={() => handleLike(filteredJobs[jobIndex], 'job')}
+                    onClick={() => handleLike(filteredJobs[jobIndex])}
                     className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full shadow-lg flex items-center justify-center transition"
                   >
                     <Heart size={30} className="fill-white" />
@@ -414,7 +453,7 @@ export default function App() {
             ) : (
               <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm border border-slate-100 my-10">
                 <div className="text-4xl">🎉</div>
-                <h3 className="font-bold text-lg text-slate-800">¡Has visto todas las vacantes!</h3>
+                <h3 className="font-bold text-lg text-slate-800">¡Has visto todas las vacantes cercanas!</h3>
                 <button 
                   onClick={() => setJobIndex(0)}
                   className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl"
@@ -426,90 +465,84 @@ export default function App() {
           </div>
         )}
 
-        {/* MODO BUSCO PERSONAL: CANDIDATOS */}
-        {currentPage === 'candidates' && (
+        {/* PERFIL DEL CANDIDATO CON FOTOS */}
+        {currentPage === 'profile' && (
           <div className="p-4 space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="font-black text-xl text-slate-900">Buscar Personal 👥</h2>
-                <p className="text-xs text-slate-500">Jóvenes cerca de tu negocio buscando oportunidad.</p>
+            <h2 className="font-black text-xl text-slate-900">Tu Perfil de Candidato 👤</h2>
+            
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden space-y-4 pb-5">
+              {/* BANNER DE PORTADA */}
+              <div className="h-28 bg-indigo-100 relative flex items-center justify-center overflow-hidden group">
+                {candidateProfile.banner ? (
+                  <img src={candidateProfile.banner} alt="Banner" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xs text-indigo-400 font-medium">Sin foto de portada</span>
+                )}
+                <label className="absolute bottom-2 right-2 bg-slate-900/70 text-white p-2 rounded-xl cursor-pointer hover:bg-slate-900 transition">
+                  <Camera size={14} />
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => handleProfileImageUpload(e, 'banner')} 
+                    className="hidden" 
+                  />
+                </label>
               </div>
-              <button 
-                onClick={() => setCurrentPage('post-job')}
-                className="bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center space-x-1"
-              >
-                <span>+ Publicar Vacante</span>
-              </button>
+
+              {/* FOTO DE PERFIL */}
+              <div className="px-5 relative flex justify-between items-end -mt-12">
+                <div className="relative w-20 h-20 rounded-2xl bg-white p-1 shadow-md">
+                  <div className="w-full h-full rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
+                    {candidateProfile.avatar ? (
+                      <img src={candidateProfile.avatar} alt="Perfil" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-3xl">👨‍🎓</span>
+                    )}
+                  </div>
+                  <label className="absolute -bottom-1 -right-1 bg-indigo-600 text-white p-1.5 rounded-lg cursor-pointer shadow">
+                    <Camera size={12} />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleProfileImageUpload(e, 'avatar')} 
+                      className="hidden" 
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* DATOS DEL PERFIL */}
+              <div className="px-5 space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Nombre Completo</label>
+                  <input 
+                    type="text" 
+                    value={candidateProfile.name} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})}
+                    className="w-full font-bold text-slate-800 text-sm border-b border-slate-100 focus:outline-none py-1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Habilidades Clave</label>
+                  <input 
+                    type="text" 
+                    value={candidateProfile.skills} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})}
+                    className="w-full text-xs text-slate-600 border-b border-slate-100 focus:outline-none py-1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Sobre ti</label>
+                  <textarea 
+                    value={candidateProfile.bio} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})}
+                    className="w-full text-xs text-slate-600 border border-slate-100 rounded-xl p-2 focus:outline-none h-16 mt-1"
+                  ></textarea>
+                </div>
+              </div>
             </div>
-
-            {candidateIndex < candidates.length ? (
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[460px]">
-                <div className="p-5 space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-3xl shadow-inner">
-                      {candidates[candidateIndex].avatar}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-lg">
-                        {candidates[candidateIndex].name}
-                      </h3>
-                      <p className="text-xs text-slate-500 font-medium">
-                        {candidates[candidateIndex].age} • {candidates[candidateIndex].zone}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 p-3 rounded-2xl space-y-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Habilidades:</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {candidates[candidateIndex].skills.map((skill, i) => (
-                        <span key={i} className="bg-white text-indigo-600 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 text-xs">
-                    <p><span className="font-bold text-slate-700">Disponibilidad:</span> {candidates[candidateIndex].availability}</p>
-                    <p><span className="font-bold text-slate-700">Experiencia:</span> {candidates[candidateIndex].experience}</p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sobre el candidato</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed italic">
-                      "{candidates[candidateIndex].bio}"
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-around items-center">
-                  <button 
-                    onClick={() => handlePass('candidate')}
-                    className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border border-slate-100"
-                  >
-                    <X size={26} />
-                  </button>
-                  <button 
-                    onClick={() => handleLike(candidates[candidateIndex], 'candidate')}
-                    className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-full shadow-lg flex items-center justify-center transition"
-                  >
-                    <Heart size={30} className="fill-white" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm border border-slate-100 my-10">
-                <div className="text-4xl">👥</div>
-                <h3 className="font-bold text-lg text-slate-800">No hay más candidatos cercanos</h3>
-                <button 
-                  onClick={() => setCandidateIndex(0)}
-                  className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl"
-                >
-                  Volver a cargar candidatos
-                </button>
-              </div>
-            )}
           </div>
         )}
 
@@ -524,12 +557,12 @@ export default function App() {
                 {matches.map((item, idx) => (
                   <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl">
-                        {item.logo || item.avatar || '💼'}
+                      <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center text-xl">
+                        {item.logo ? <img src={item.logo} alt="Logo" className="w-full h-full object-cover" /> : '💼'}
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm text-slate-800">{item.title || item.name}</h4>
-                        <p className="text-xs text-slate-500">{item.company || item.zone}</p>
+                        <h4 className="font-bold text-sm text-slate-800">{item.title}</h4>
+                        <p className="text-xs text-slate-500">{item.company}</p>
                       </div>
                     </div>
                     <button className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
@@ -542,11 +575,36 @@ export default function App() {
           </div>
         )}
 
-        {/* FORMULARIO PUBLICAR VACANTE CON UBICACIÓN FIJA DEL NEGOCIO */}
+        {/* FORMULARIO PUBLICAR VACANTE CON DIRECCIÓN GEOCODIFICADA Y LOGO */}
         {currentPage === 'post-job' && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-xl text-slate-900">Publicar vacante de tu Negocio 🏪</h2>
             <form onSubmit={handlePostJob} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+              
+              {/* SUBIR FOTO/LOGO DEL NEGOCIO */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Imagen o Logo del Negocio</label>
+                <div className="flex items-center space-x-3">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                    {businessLogo ? (
+                      <img src={businessLogo} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="text-slate-400" size={24} />
+                    )}
+                  </div>
+                  <label className="bg-indigo-50 text-indigo-600 text-xs font-bold px-3 py-2 rounded-xl border border-indigo-100 cursor-pointer flex items-center space-x-1">
+                    <Upload size={14} />
+                    <span>{businessLogo ? 'Cambiar Foto' : 'Subir Foto'}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleBusinessLogoUpload} 
+                      className="hidden" 
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Nombre del puesto</label>
                 <input 
@@ -572,16 +630,16 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Dirección o Colonia física del local</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Calle, Número y Colonia exacta</label>
                 <input 
                   type="text" 
-                  placeholder="Ej. Av. Universidad 450, Col. Narvarte" 
+                  placeholder="Ej. Calle Morelos 123, Centro" 
                   value={newAddress} 
                   onChange={(e) => setNewAddress(e.target.value)} 
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs" 
                   required 
                 />
-                <span className="text-[10px] text-slate-400">Esta dirección es fija y no cambiará aunque te desplaces de lugar.</span>
+                <span className="text-[10px] text-slate-400">Calcularemos las coordenadas geográficas automáticamente.</span>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -620,8 +678,16 @@ export default function App() {
                 ></textarea>
               </div>
 
-              <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition">
-                Guardar Vacante con Dirección Fija
+              <button 
+                type="submit" 
+                disabled={isGeocoding}
+                className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center space-x-2"
+              >
+                {isGeocoding ? (
+                  <span>Calculando ubicación GPS... 🌀</span>
+                ) : (
+                  <span>Publicar Vacante con Foto y GPS</span>
+                )}
               </button>
             </form>
           </div>
@@ -636,7 +702,7 @@ export default function App() {
             <div className="text-5xl">🎉</div>
             <h3 className="font-black text-2xl text-slate-900">¡Hicieron Match!</h3>
             <p className="text-xs text-slate-500">
-              Interés guardado con <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>.
+              Interés guardado en <span className="font-bold text-indigo-600">{lastMatch.title}</span>.
             </p>
             <button 
               onClick={() => setShowMatchModal(false)}
@@ -651,23 +717,21 @@ export default function App() {
       {/* BARRA INFERIOR DE NAVEGACIÓN */}
       {currentPage !== 'landing' && (
         <nav className="fixed bottom-0 max-w-md w-full bg-white border-t border-slate-100 px-6 py-2.5 flex justify-around items-center z-30">
-          {userRole === 'seeker' ? (
-            <button 
-              onClick={() => setCurrentPage('explore')}
-              className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-600' : 'text-slate-400'}`}
-            >
-              <Search size={20} />
-              <span className="text-[10px] font-bold">Buscar Vacantes</span>
-            </button>
-          ) : (
-            <button 
-              onClick={() => setCurrentPage('candidates')}
-              className={`flex flex-col items-center space-y-1 ${currentPage === 'candidates' ? 'text-indigo-600' : 'text-slate-400'}`}
-            >
-              <Users size={20} />
-              <span className="text-[10px] font-bold">Buscar Candidatos</span>
-            </button>
-          )}
+          <button 
+            onClick={() => setCurrentPage('explore')}
+            className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-600' : 'text-slate-400'}`}
+          >
+            <Search size={20} />
+            <span className="text-[10px] font-bold">Explorar</span>
+          </button>
+
+          <button 
+            onClick={() => setCurrentPage('profile')}
+            className={`flex flex-col items-center space-y-1 ${currentPage === 'profile' ? 'text-indigo-600' : 'text-slate-400'}`}
+          >
+            <User size={20} />
+            <span className="text-[10px] font-bold">Mi Perfil</span>
+          </button>
 
           <button 
             onClick={() => setCurrentPage('matches')}
