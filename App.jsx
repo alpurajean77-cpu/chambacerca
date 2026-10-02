@@ -9,7 +9,7 @@ import {
 // Importaciones de Firebase
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp 
+  getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp 
 } from 'firebase/firestore';
 
 // Configuración de Firebase
@@ -113,14 +113,22 @@ export default function App() {
     }
   }, []);
 
-  // Cargar vacantes en tiempo real desde Firebase
+  // Cargar vacantes en tiempo real desde Firebase (Ordenadas localmente)
   useEffect(() => {
-    const q = query(collection(db, "vacantes"), orderBy("createdAt", "desc"));
+    const q = query(collection(db, "vacantes"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const jobList = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+
+      // Ordenar las vacantes más recientes primero
+      jobList.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || Date.now() / 1000;
+        const timeB = b.createdAt?.seconds || Date.now() / 1000;
+        return timeB - timeA;
+      });
+
       setJobs(jobList);
       setLoading(false);
     }, (error) => {
@@ -131,7 +139,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Handler para subir fotos del perfil de candidato
+  // Subir fotos del perfil de candidato
   const handleProfileImageUpload = async (e, type) => {
     const file = e.target.files[0];
     if (file) {
@@ -144,7 +152,7 @@ export default function App() {
     }
   };
 
-  // Handler para subir foto del negocio
+  // Subir foto/logo del negocio
   const handleBusinessLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -157,12 +165,18 @@ export default function App() {
     }
   };
 
-  // Convertir dirección escrita en coordenadas lat/lng mediante Nominatim
+  // Convertir dirección a coordenadas GPS con timeout rápido
   const geocodeAddress = async (addressText) => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressText)}`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressText)}`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
+
       const data = await response.json();
       if (data && data.length > 0) {
         return {
@@ -171,13 +185,13 @@ export default function App() {
         };
       }
     } catch (error) {
-      console.warn("Error en la geocodificación:", error);
+      console.warn("Geocodificación omitida/fallida:", error);
     }
-    // Fallback a ubicación del candidato o centro por defecto si no encuentra la calle exacta
+    // Si no encuentra la dirección o tarda mucho, usa las coordenadas del usuario o centro por defecto
     return userCoords || { lat: 19.4326, lng: -99.1332 };
   };
 
-  // Guardar vacante en Firebase con geocodificación real
+  // Guardar vacante en Firebase
   const handlePostJob = async (e) => {
     e.preventDefault();
     setIsGeocoding(true);
@@ -199,6 +213,7 @@ export default function App() {
         createdAt: serverTimestamp()
       });
 
+      // Limpiar campos del formulario
       setNewTitle('');
       setNewCompany('');
       setNewAddress('');
@@ -208,7 +223,11 @@ export default function App() {
       setBusinessLogo(null);
       setIsGeocoding(false);
 
-      alert('¡Vacante publicada exitosamente con ubicación geográfica calculada!');
+      alert('¡Vacante publicada y guardada exitosamente!');
+      
+      // Reiniciar índice y navegar a la sección de explorar para verla al momento
+      setJobIndex(0);
+      setUserRole('seeker');
       setCurrentPage('explore');
     } catch (error) {
       console.error("Error al publicar vacante: ", error);
@@ -248,7 +267,7 @@ export default function App() {
       {/* HEADER */}
       {currentPage !== 'landing' && (
         <header className="bg-white border-b border-slate-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30">
-          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentPage('explore')}>
+          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => { setJobIndex(0); setCurrentPage('explore'); }}>
             <div className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9">
               ⚡
             </div>
@@ -261,6 +280,7 @@ export default function App() {
             onClick={() => {
               const newRole = userRole === 'seeker' ? 'business' : 'seeker';
               setUserRole(newRole);
+              setJobIndex(0); // Reinicia el visor a la primera vacante al cambiar
               setCurrentPage(newRole === 'seeker' ? 'explore' : 'post-job');
             }}
             className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 flex items-center space-x-1"
@@ -289,7 +309,7 @@ export default function App() {
 
               <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
                 <button 
-                  onClick={() => { setUserRole('seeker'); setCurrentPage('explore'); }}
+                  onClick={() => { setUserRole('seeker'); setJobIndex(0); setCurrentPage('explore'); }}
                   className="w-full bg-white text-indigo-700 font-bold py-3.5 px-6 rounded-2xl shadow-lg hover:bg-slate-100 transition active:scale-95 flex items-center justify-center space-x-2"
                 >
                   <Search size={18} />
@@ -575,7 +595,7 @@ export default function App() {
           </div>
         )}
 
-        {/* FORMULARIO PUBLICAR VACANTE CON DIRECCIÓN GEOCODIFICADA Y LOGO */}
+        {/* FORMULARIO PUBLICAR VACANTE */}
         {currentPage === 'post-job' && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-xl text-slate-900">Publicar vacante de tu Negocio 🏪</h2>
@@ -684,9 +704,9 @@ export default function App() {
                 className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center space-x-2"
               >
                 {isGeocoding ? (
-                  <span>Calculando ubicación GPS... 🌀</span>
+                  <span>Guardando y Calculando GPS... 🌀</span>
                 ) : (
-                  <span>Publicar Vacante con Foto y GPS</span>
+                  <span>Publicar Vacante Instantáneamente</span>
                 )}
               </button>
             </form>
@@ -718,7 +738,7 @@ export default function App() {
       {currentPage !== 'landing' && (
         <nav className="fixed bottom-0 max-w-md w-full bg-white border-t border-slate-100 px-6 py-2.5 flex justify-around items-center z-30">
           <button 
-            onClick={() => setCurrentPage('explore')}
+            onClick={() => { setJobIndex(0); setCurrentPage('explore'); }}
             className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-600' : 'text-slate-400'}`}
           >
             <Search size={20} />
