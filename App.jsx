@@ -3,13 +3,14 @@ import {
   MapPin, DollarSign, Clock, Heart, X, 
   MessageSquare, User, Building, Search, 
   Sliders, Navigation, Camera, Image as ImageIcon, Upload,
-  UserCheck, Crosshair, Map as MapIcon, Check
+  UserCheck, Crosshair, Map as MapIcon, Check, Save, Loader2
 } from 'lucide-react';
 
 // Importaciones de Firebase
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp 
+  getFirestore, collection, addDoc, onSnapshot, query, where,
+  doc, setDoc, getDoc, serverTimestamp 
 } from 'firebase/firestore';
 
 // Configuración de Firebase
@@ -26,10 +27,20 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Obtener o generar ID único de usuario persistente
+const getUserId = () => {
+  let uid = localStorage.getItem('chamba_user_id');
+  if (!uid) {
+    uid = 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+    localStorage.setItem('chamba_user_id', uid);
+  }
+  return uid;
+};
+
 // Haversine para distancia exacta en Km
 function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  const R = 6371; // Radio de la Tierra en km
+  const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
@@ -90,7 +101,6 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
   );
   const [addressName, setAddressName] = useState('Cargando dirección...');
 
-  // Cargar librerías de Leaflet si no están presentes
   useEffect(() => {
     const loadLeaflet = async () => {
       if (!window.L) {
@@ -142,7 +152,6 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Icono personalizado para el pin
     const customIcon = L.divIcon({
       className: 'custom-pin',
       html: `<div style="background-color: #4f46e5; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">📍</div>`,
@@ -155,14 +164,12 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
 
     reverseGeocode(initialLat, initialLng);
 
-    // Evento al arrastrar el pin
     marker.on('dragend', (e) => {
       const pos = e.target.getLatLng();
       setSelectedCoords({ lat: pos.lat, lng: pos.lng });
       reverseGeocode(pos.lat, pos.lng);
     });
 
-    // Evento al hacer clic en cualquier parte del mapa
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
       marker.setLatLng([lat, lng]);
@@ -171,7 +178,6 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
     });
   };
 
-  // Buscar en el mapa
   const handleSearchOnMap = async (e) => {
     e.preventDefault();
     if (!searchQuery) return;
@@ -212,7 +218,6 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col justify-end sm:justify-center p-0 sm:p-4">
       <div className="bg-white w-full max-w-md mx-auto rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh]">
-        {/* Header modal */}
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-800 text-sm">Selecciona la ubicación exacta</h3>
@@ -223,7 +228,6 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
           </button>
         </div>
 
-        {/* Buscador sobre mapa */}
         <div className="p-3 bg-white border-b border-slate-100 space-y-2">
           <form onSubmit={handleSearchOnMap} className="flex gap-2">
             <input 
@@ -248,12 +252,10 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
           </button>
         </div>
 
-        {/* Contenedor del Mapa */}
         <div className="flex-1 relative w-full bg-slate-100">
           <div ref={mapContainerRef} className="w-full h-full z-10"></div>
         </div>
 
-        {/* Footer del Mapa con la Dirección Detectada */}
         <div className="p-4 bg-white border-t border-slate-100 space-y-3">
           <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 flex items-start space-x-2">
             <MapPin size={18} className="text-indigo-600 shrink-0 mt-0.5" />
@@ -278,6 +280,8 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
 };
 
 export default function App() {
+  const currentUserId = getUserId();
+
   const [currentPage, setCurrentPage] = useState('landing'); 
   const [userRole, setUserRole] = useState('seeker'); // 'seeker' o 'business'
   
@@ -292,6 +296,10 @@ export default function App() {
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [lastMatch, setLastMatch] = useState(null);
 
+  // Estado de guardado de perfil
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSavedNotice, setProfileSavedNotice] = useState(false);
+
   // Animación de transición
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -304,12 +312,12 @@ export default function App() {
   const [filterDistance, setFilterDistance] = useState(15);
   const [filterType, setFilterType] = useState('Todos');
 
-  // Perfil Candidato
+  // Perfil Candidato Persistente
   const [candidateProfile, setCandidateProfile] = useState({
-    name: 'Alex González',
-    age: '20 años',
-    skills: 'Atención al cliente, Caja, Cafetería',
-    bio: 'Estudiante enfocado en atención al cliente con disponibilidad inmediata.',
+    name: '',
+    age: '',
+    skills: '',
+    bio: '',
     avatar: null,
     banner: null
   });
@@ -357,11 +365,52 @@ export default function App() {
     }
   }, []);
 
+  // 1. CARGAR O INICIALIZAR PERFIL DESDE FIREBASE PERMANENTEMENTE
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const docRef = doc(db, "perfiles", currentUserId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setCandidateProfile(docSnap.data());
+        } else {
+          // Perfil inicial por defecto si no existe
+          const initialData = {
+            name: 'Alex González',
+            age: '20 años',
+            skills: 'Atención al cliente, Caja, Cafetería',
+            bio: 'Estudiante enfocado en atención al cliente con disponibilidad inmediata.',
+            avatar: null,
+            banner: null
+          };
+          await setDoc(docRef, initialData);
+          setCandidateProfile(initialData);
+        }
+      } catch (err) {
+        console.error("Error al cargar perfil de Firebase:", err);
+      }
+    };
+
+    fetchProfile();
+  }, [currentUserId]);
+
+  // 2. CARGAR MATCHES DESDE FIREBASE EN TIEMPO REAL
+  useEffect(() => {
+    const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const matchDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data().item }));
+      setMatches(matchDocs);
+    }, (err) => console.error("Error al obtener matches:", err));
+
+    return () => unsubscribe();
+  }, [currentUserId]);
+
   // Cargar vacantes en tiempo real desde Firebase
   useEffect(() => {
     const q = query(collection(db, "vacantes"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const jobList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const jobList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       jobList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setJobs(jobList);
       setLoading(false);
@@ -371,6 +420,26 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // GUARDAR PERFIL EN FIREBASE CLOUD
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      const docRef = doc(db, "perfiles", currentUserId);
+      await setDoc(docRef, {
+        ...candidateProfile,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      setIsSavingProfile(false);
+      setProfileSavedNotice(true);
+      setTimeout(() => setProfileSavedNotice(false), 3000);
+    } catch (err) {
+      console.error("Error al guardar perfil:", err);
+      setIsSavingProfile(false);
+      alert("Error al guardar perfil en la nube.");
+    }
+  };
 
   // Subir fotos
   const handleProfileImageUpload = async (e, type) => {
@@ -416,6 +485,7 @@ export default function App() {
         lat: selectedCoords.lat,
         lng: selectedCoords.lng,
         logo: businessLogo || null,
+        ownerId: currentUserId,
         createdAt: serverTimestamp()
       });
 
@@ -425,17 +495,29 @@ export default function App() {
       setBusinessLogo(null);
 
       alert('¡Vacante publicada exitosamente!');
-      navigateTo('explore', 'seeker'); // Va a explorar para verla de inmediato
+      navigateTo('explore', 'seeker');
     } catch (err) {
       console.error(err);
       alert('Error al publicar vacante.');
     }
   };
 
-  const handleLike = (item) => {
-    setMatches([...matches, item]);
+  // GUARDAR MATCH DE MANERA PERMANENTE EN FIREBASE
+  const handleLike = async (item) => {
     setLastMatch(item);
     setShowMatchModal(true);
+
+    try {
+      await addDoc(collection(db, "matches"), {
+        userId: currentUserId,
+        item: item,
+        role: userRole,
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Error al registrar match en Firebase:", err);
+    }
+
     if (userRole === 'seeker') setJobIndex(jobIndex + 1);
     else setCandidateIndex(candidateIndex + 1);
   };
@@ -468,7 +550,7 @@ export default function App() {
         />
       )}
 
-      {/* ANIMACIÓN DE BURBUJA / TRANSICIÓN */}
+      {/* ANIMACIÓN DE TRANSICIÓN */}
       <div 
         className={`fixed inset-0 pointer-events-none z-50 transition-all duration-300 ease-out flex items-center justify-center ${
           isTransitioning ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
@@ -516,7 +598,7 @@ export default function App() {
               </div>
               <h1 className="text-4xl font-black tracking-tight leading-tight">ChambaCerca</h1>
               <p className="text-indigo-100 text-sm max-w-xs mx-auto leading-relaxed">
-                Empleos e interactividad local en tiempo real con geolocalización visual exacta.
+                Empleos e interactividad local en tiempo real con datos persistentes en la nube.
               </p>
 
               <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
@@ -536,7 +618,7 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <div className="text-xs text-indigo-200/70 pb-4 z-10">ChambaCerca 2026 • Geolocalización Visual</div>
+            <div className="text-xs text-indigo-200/70 pb-4 z-10">ChambaCerca 2026 • Datos Persistentes</div>
           </div>
         )}
 
@@ -544,7 +626,6 @@ export default function App() {
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            {/* BARRA DE ESTADO / GPS */}
             <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-2">
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2 text-xs font-semibold text-slate-600">
@@ -579,7 +660,6 @@ export default function App() {
               )}
             </div>
 
-            {/* VISTA CANDIDATO O NEGOCIO */}
             {userRole === 'seeker' ? (
               loading ? (
                 <div className="text-center py-20 text-xs text-slate-500 animate-pulse">Cargando vacantes... 🌀</div>
@@ -699,10 +779,19 @@ export default function App() {
           </div>
         )}
 
-        {/* PERFIL CANDIDATO */}
+        {/* PERFIL CANDIDATO (GUARDADO EN LA NUBE) */}
         {currentPage === 'profile' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl text-slate-900">Tu Perfil 👤</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="font-black text-xl text-slate-900">Tu Perfil 👤</h2>
+              {profileSavedNotice && (
+                <span className="text-xs text-emerald-600 font-bold flex items-center space-x-1 animate-bounce">
+                  <Check size={14} />
+                  <span>¡Guardado en la nube!</span>
+                </span>
+              )}
+            </div>
+
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden space-y-4 pb-5">
               <div className="h-28 bg-indigo-100 relative flex items-center justify-center overflow-hidden">
                 {candidateProfile.banner ? (
@@ -735,22 +824,58 @@ export default function App() {
               <div className="px-5 space-y-3">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase">Nombre Completo</label>
-                  <input type="text" value={candidateProfile.name} onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})} className="w-full font-bold text-slate-800 text-sm border-b py-1" />
+                  <input 
+                    type="text" 
+                    value={candidateProfile.name || ''} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})} 
+                    className="w-full font-bold text-slate-800 text-sm border-b py-1 focus:outline-none focus:border-indigo-600" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Edad / Años</label>
+                  <input 
+                    type="text" 
+                    value={candidateProfile.age || ''} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, age: e.target.value})} 
+                    className="w-full text-xs text-slate-600 border-b py-1 focus:outline-none focus:border-indigo-600" 
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase">Habilidades Clave</label>
-                  <input type="text" value={candidateProfile.skills} onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})} className="w-full text-xs text-slate-600 border-b py-1" />
+                  <input 
+                    type="text" 
+                    value={candidateProfile.skills || ''} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})} 
+                    className="w-full text-xs text-slate-600 border-b py-1 focus:outline-none focus:border-indigo-600" 
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase">Sobre ti</label>
-                  <textarea value={candidateProfile.bio} onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})} className="w-full text-xs text-slate-600 border rounded-xl p-2 h-16 mt-1"></textarea>
+                  <textarea 
+                    value={candidateProfile.bio || ''} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})} 
+                    className="w-full text-xs text-slate-600 border rounded-xl p-2 h-20 mt-1 focus:outline-none focus:border-indigo-600"
+                  ></textarea>
                 </div>
+
+                <button 
+                  onClick={handleSaveProfile}
+                  disabled={isSavingProfile}
+                  className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-md transition"
+                >
+                  {isSavingProfile ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Save size={16} />
+                  )}
+                  <span>{isSavingProfile ? 'Guardando...' : 'Guardar Perfil'}</span>
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* MATCHES */}
+        {/* MATCHES EN TIEMPO REAL */}
         {currentPage === 'matches' && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-xl text-slate-900">Tus Matches 🎉</h2>
@@ -808,7 +933,6 @@ export default function App() {
                 <input type="text" placeholder="Ej. Café El Roble" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
               </div>
 
-              {/* SELECTOR DE UBICACIÓN VISUAL EN EL MAPA */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Ubicación del Negocio</label>
                 
