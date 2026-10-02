@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Briefcase, MapPin, DollarSign, Clock, Filter, Heart, X, Star, 
-  MessageSquare, User, Building, ShieldCheck, Search, 
-  AlertTriangle, Sparkles, Sliders, Users, CheckCircle, Navigation,
-  Camera, Image as ImageIcon, Upload
+  MapPin, DollarSign, Clock, Heart, X, 
+  MessageSquare, User, Building, Search, 
+  Sliders, Navigation, Camera, Image as ImageIcon, Upload,
+  Briefcase, Sparkles, UserCheck
 } from 'lucide-react';
 
 // Importaciones de Firebase
@@ -26,10 +26,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Función de Haversine para calcular la distancia precisa en Km entre 2 coordenadas
+// Haversine para distancia en Km
 function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  const R = 6371; // Radio de la Tierra en km
+  const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
@@ -37,11 +37,10 @@ function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
     Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c;
-  return distance.toFixed(1); // Devuelve distancia con 1 decimal (Ej. 1.4)
+  return (R * c).toFixed(1);
 }
 
-// Convertir archivo de imagen a Base64
+// Convertir archivo a Base64
 const convertFileToBase64 = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -51,27 +50,62 @@ const convertFileToBase64 = (file) => {
   });
 };
 
+// Candidatos demo para cuando el Negocio explora prospectos
+const DEMO_CANDIDATES = [
+  {
+    id: 'cand-1',
+    name: 'Sofía Martínez',
+    age: '21 años',
+    role: 'Atención a Clientes / Barista',
+    skills: 'Manejo de caja, Preparación de café, Trabajo en equipo',
+    bio: 'Estudiante universitaria buscando empleo de medio tiempo. Experiencia previa de 1 año en cafeterías.',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+    banner: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500',
+    lat: 19.4326,
+    lng: -99.1332
+  },
+  {
+    id: 'cand-2',
+    name: 'Carlos Mendoza',
+    age: '19 años',
+    role: 'Auxiliar General / Repartidor',
+    skills: 'Licencia de conducir, Puntualidad, Proactivo',
+    bio: 'Disponibilidad inmediata para turnos matutinos o vespertinos. Excelente actitud de servicio.',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    banner: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500',
+    lat: 19.4350,
+    lng: -99.1400
+  }
+];
+
 export default function App() {
   const [currentPage, setCurrentPage] = useState('landing'); 
-  const [userRole, setUserRole] = useState('seeker'); 
+  const [userRole, setUserRole] = useState('seeker'); // 'seeker' (Candidato) o 'business' (Negocio)
+  
   const [jobs, setJobs] = useState([]);
+  const [candidates, setCandidates] = useState(DEMO_CANDIDATES);
   const [loading, setLoading] = useState(true);
   
   const [jobIndex, setJobIndex] = useState(0);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  
   const [matches, setMatches] = useState([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [lastMatch, setLastMatch] = useState(null);
 
-  // Geolocalización del usuario que busca empleo
-  const [userCoords, setUserCoords] = useState(null);
-  const [geoStatus, setGeoStatus] = useState('Obteniendo tu ubicación GPS...');
+  // Animación de burbuja/transición
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // Estados de Filtro
+  // Geolocalización
+  const [userCoords, setUserCoords] = useState(null);
+  const [geoStatus, setGeoStatus] = useState('Buscando GPS...');
+
+  // Filtros
   const [showFilters, setShowFilters] = useState(false);
   const [filterDistance, setFilterDistance] = useState(15);
   const [filterType, setFilterType] = useState('Todos');
 
-  // Perfil del Candidato (con Fotos)
+  // Perfil Candidato
   const [candidateProfile, setCandidateProfile] = useState({
     name: 'Alex González',
     age: '20 años',
@@ -81,7 +115,7 @@ export default function App() {
     banner: null
   });
 
-  // Campos para formulario de publicar vacante (Del Negocio)
+  // Campos para publicar vacante
   const [newTitle, setNewTitle] = useState('');
   const [newCompany, setNewCompany] = useState('');
   const [newAddress, setNewAddress] = useState('');
@@ -91,114 +125,85 @@ export default function App() {
   const [businessLogo, setBusinessLogo] = useState(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
 
-  // Obtenemos la ubicación GPS en tiempo real del candidato
+  // Navegación animada con efecto burbuja
+  const navigateTo = (page, role = userRole) => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setUserRole(role);
+      setCurrentPage(page);
+      setJobIndex(0);
+      setCandidateIndex(0);
+      setIsTransitioning(false);
+    }, 280);
+  };
+
+  // GPS
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserCoords({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
+        (pos) => {
+          setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
           setGeoStatus('GPS Activo 📍');
         },
-        (error) => {
-          console.warn("Geolocalización no otorgada:", error);
-          setGeoStatus('Ubicación general');
-        },
+        () => setGeoStatus('Ubicación aproximada'),
         { enableHighAccuracy: true, timeout: 10000 }
       );
-    } else {
-      setGeoStatus('GPS no soportado');
     }
   }, []);
 
-  // Cargar vacantes en tiempo real desde Firebase (Ordenadas localmente)
+  // Cargar Vacantes desde Firestore
   useEffect(() => {
     const q = query(collection(db, "vacantes"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const jobList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      // Ordenar las vacantes más recientes primero
-      jobList.sort((a, b) => {
-        const timeA = a.createdAt?.seconds || Date.now() / 1000;
-        const timeB = b.createdAt?.seconds || Date.now() / 1000;
-        return timeB - timeA;
-      });
-
+      const jobList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      jobList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setJobs(jobList);
       setLoading(false);
-    }, (error) => {
-      console.error("Error al cargar vacantes: ", error);
+    }, (err) => {
+      console.error(err);
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
-  // Subir fotos del perfil de candidato
+  // Handlers para imágenes
   const handleProfileImageUpload = async (e, type) => {
     const file = e.target.files[0];
     if (file) {
-      try {
-        const base64 = await convertFileToBase64(file);
-        setCandidateProfile(prev => ({ ...prev, [type]: base64 }));
-      } catch (err) {
-        alert("Error al procesar la imagen.");
-      }
+      const base64 = await convertFileToBase64(file);
+      setCandidateProfile(prev => ({ ...prev, [type]: base64 }));
     }
   };
 
-  // Subir foto/logo del negocio
   const handleBusinessLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      try {
-        const base64 = await convertFileToBase64(file);
-        setBusinessLogo(base64);
-      } catch (err) {
-        alert("Error al cargar el logo del negocio.");
-      }
+      const base64 = await convertFileToBase64(file);
+      setBusinessLogo(base64);
     }
   };
 
-  // Convertir dirección a coordenadas GPS con timeout rápido
+  // Geocodificación rápida
   const geocodeAddress = async (addressText) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressText)}`,
-        { signal: controller.signal }
-      );
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressText)}`, { signal: controller.signal });
       clearTimeout(timeoutId);
-
-      const data = await response.json();
-      if (data && data.length > 0) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon)
-        };
-      }
-    } catch (error) {
-      console.warn("Geocodificación omitida/fallida:", error);
+      const data = await res.json();
+      if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch (e) {
+      console.warn("Geo fallback", e);
     }
-    // Si no encuentra la dirección o tarda mucho, usa las coordenadas del usuario o centro por defecto
     return userCoords || { lat: 19.4326, lng: -99.1332 };
   };
 
-  // Guardar vacante en Firebase
+  // Guardar Vacante
   const handlePostJob = async (e) => {
     e.preventDefault();
     setIsGeocoding(true);
-
     try {
       const coords = await geocodeAddress(newAddress);
-
       await addDoc(collection(db, "vacantes"), {
         title: newTitle,
         company: newCompany,
@@ -209,28 +214,17 @@ export default function App() {
         lat: coords.lat,
         lng: coords.lng,
         logo: businessLogo || null,
-        verified: true,
         createdAt: serverTimestamp()
       });
 
-      // Limpiar campos del formulario
-      setNewTitle('');
-      setNewCompany('');
-      setNewAddress('');
-      setNewSalary('');
-      setNewSchedule('');
-      setNewDesc('');
+      setNewTitle(''); setNewCompany(''); setNewAddress('');
+      setNewSalary(''); setNewSchedule(''); setNewDesc('');
       setBusinessLogo(null);
       setIsGeocoding(false);
 
-      alert('¡Vacante publicada y guardada exitosamente!');
-      
-      // Reiniciar índice y navegar a la sección de explorar para verla al momento
-      setJobIndex(0);
-      setUserRole('seeker');
-      setCurrentPage('explore');
-    } catch (error) {
-      console.error("Error al publicar vacante: ", error);
+      alert('¡Vacante publicada con éxito!');
+      navigateTo('explore', 'seeker'); // Redirige a explorar como candidato para verla de inmediato
+    } catch (err) {
       setIsGeocoding(false);
       alert('Error al publicar vacante.');
     }
@@ -240,23 +234,21 @@ export default function App() {
     setMatches([...matches, item]);
     setLastMatch(item);
     setShowMatchModal(true);
-    setJobIndex(jobIndex + 1);
+    if (userRole === 'seeker') setJobIndex(jobIndex + 1);
+    else setCandidateIndex(candidateIndex + 1);
   };
 
   const handlePass = () => {
-    setJobIndex(jobIndex + 1);
+    if (userRole === 'seeker') setJobIndex(jobIndex + 1);
+    else setCandidateIndex(candidateIndex + 1);
   };
 
-  // Filtrado de vacantes por distancia y horario
+  // Filtrado de vacantes por distancia
   const filteredJobs = jobs.filter(job => {
-    if (filterType !== 'Todos' && job.schedule && !job.schedule.toLowerCase().includes(filterType.toLowerCase())) {
-      return false;
-    }
+    if (filterType !== 'Todos' && job.schedule && !job.schedule.toLowerCase().includes(filterType.toLowerCase())) return false;
     if (userCoords && job.lat && job.lng && filterDistance < 20) {
       const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, job.lat, job.lng);
-      if (dist && parseFloat(dist) > filterDistance) {
-        return false;
-      }
+      if (dist && parseFloat(dist) > filterDistance) return false;
     }
     return true;
   });
@@ -264,11 +256,20 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 shadow-2xl relative overflow-hidden">
       
+      {/* EFECTO BURBUJA / TRANSICIÓN FLUIDA */}
+      <div 
+        className={`fixed inset-0 pointer-events-none z-50 transition-all duration-300 ease-out flex items-center justify-center ${
+          isTransitioning ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+        }`}
+      >
+        <div className="w-96 h-96 bg-gradient-to-tr from-indigo-500/30 to-violet-500/30 backdrop-blur-xl rounded-full animate-ping"></div>
+      </div>
+
       {/* HEADER */}
       {currentPage !== 'landing' && (
-        <header className="bg-white border-b border-slate-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30">
-          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => { setJobIndex(0); setCurrentPage('explore'); }}>
-            <div className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9">
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30 transition-all">
+          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo('explore', userRole)}>
+            <div className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9 shadow-md shadow-indigo-200 animate-bounce">
               ⚡
             </div>
             <span className="font-black text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
@@ -278,238 +279,229 @@ export default function App() {
 
           <button 
             onClick={() => {
-              const newRole = userRole === 'seeker' ? 'business' : 'seeker';
-              setUserRole(newRole);
-              setJobIndex(0); // Reinicia el visor a la primera vacante al cambiar
-              setCurrentPage(newRole === 'seeker' ? 'explore' : 'post-job');
+              const nextRole = userRole === 'seeker' ? 'business' : 'seeker';
+              navigateTo(nextRole === 'seeker' ? 'explore' : 'explore', nextRole);
             }}
-            className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 flex items-center space-x-1"
+            className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 hover:scale-105 transition active:scale-95 flex items-center space-x-1 shadow-sm"
           >
-            {userRole === 'seeker' ? <span>👤 Busco Chamba</span> : <span>🏪 Soy Negocio</span>}
+            {userRole === 'seeker' ? <span>👤 Soy Buscador</span> : <span>🏪 Modo Negocio</span>}
           </button>
         </header>
       )}
 
       {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 pb-20">
+      <main className="flex-1 pb-20 transition-all duration-300 transform">
         
         {/* LANDING PAGE */}
         {currentPage === 'landing' && (
-          <div className="p-6 flex flex-col items-center justify-between min-h-screen bg-gradient-to-b from-indigo-600 via-indigo-700 to-violet-800 text-white text-center">
-            <div className="my-auto space-y-6 pt-10">
+          <div className="p-6 flex flex-col items-center justify-between min-h-screen bg-gradient-to-b from-indigo-600 via-indigo-700 to-violet-800 text-white text-center relative overflow-hidden">
+            {/* Burbujas decorativas de fondo */}
+            <div className="absolute top-10 left-5 w-32 h-32 bg-white/10 rounded-full blur-2xl animate-pulse"></div>
+            <div className="absolute bottom-20 right-5 w-40 h-40 bg-violet-400/20 rounded-full blur-3xl animate-pulse"></div>
+
+            <div className="my-auto space-y-6 pt-10 z-10">
               <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-inner border border-white/20">
                 ⚡
               </div>
-              <h1 className="text-4xl font-black tracking-tight leading-tight">
-                ChambaCerca
-              </h1>
+              <h1 className="text-4xl font-black tracking-tight leading-tight">ChambaCerca</h1>
               <p className="text-indigo-100 text-sm max-w-xs mx-auto leading-relaxed">
-                Empleos locales geolocalizados con fotos de perfil y coincidencia instantánea.
+                Empleos e interactividad local en tiempo real con dinámicas de match directo.
               </p>
 
               <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
                 <button 
-                  onClick={() => { setUserRole('seeker'); setJobIndex(0); setCurrentPage('explore'); }}
-                  className="w-full bg-white text-indigo-700 font-bold py-3.5 px-6 rounded-2xl shadow-lg hover:bg-slate-100 transition active:scale-95 flex items-center justify-center space-x-2"
+                  onClick={() => navigateTo('explore', 'seeker')}
+                  className="w-full bg-white text-indigo-700 font-bold py-3.5 px-6 rounded-2xl shadow-lg hover:scale-105 transition active:scale-95 flex items-center justify-center space-x-2"
                 >
                   <Search size={18} />
-                  <span>Buscar Empleo (Jóvenes)</span>
+                  <span>Busco Empleo</span>
                 </button>
                 <button 
-                  onClick={() => { setUserRole('business'); setCurrentPage('post-job'); }}
+                  onClick={() => navigateTo('explore', 'business')}
                   className="w-full bg-indigo-500/30 backdrop-blur-md text-white font-semibold py-3.5 px-6 rounded-2xl border border-white/30 hover:bg-white/20 transition active:scale-95 flex items-center justify-center space-x-2"
                 >
                   <Building size={18} />
-                  <span>Soy Negocio (Publicar)</span>
+                  <span>Soy Negocio (Ver Candidatos)</span>
                 </button>
               </div>
             </div>
-            <div className="text-xs text-indigo-200/70 pb-4">ChambaCerca 2026 • Ultra-Proximidad</div>
+            <div className="text-xs text-indigo-200/70 pb-4 z-10">ChambaCerca 2026 • Ultra-Proximidad</div>
           </div>
         )}
 
-        {/* EXPLORAR VACANTES */}
+        {/* EXPLORAR (DINÁMICO SEGÚN ROL) */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            {/* BARRA DE UBICACIÓN Y FILTROS */}
+            {/* BARRA DE ESTADO / GPS */}
             <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-2">
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2 text-xs font-semibold text-slate-600">
                   <Navigation size={14} className="text-indigo-600 animate-pulse" />
                   <span>{geoStatus}</span>
+                  <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                    {userRole === 'seeker' ? 'Viendo Vacantes' : 'Viendo Candidatos'}
+                  </span>
                 </div>
-                <button 
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="text-xs font-semibold text-indigo-600 flex items-center space-x-1 bg-indigo-50 px-3 py-1.5 rounded-xl"
-                >
-                  <Sliders size={12} />
-                  <span>{showFilters ? 'Ocultar' : 'Filtros'}</span>
-                </button>
+                {userRole === 'seeker' && (
+                  <button 
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="text-xs font-semibold text-indigo-600 flex items-center space-x-1 bg-indigo-50 px-3 py-1.5 rounded-xl"
+                  >
+                    <Sliders size={12} />
+                    <span>Filtros</span>
+                  </button>
+                )}
               </div>
 
-              {showFilters && (
+              {showFilters && userRole === 'seeker' && (
                 <div className="pt-3 border-t border-slate-100 space-y-3 text-xs">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Radio máximo: {filterDistance} km</label>
+                    <label className="block font-bold text-slate-700 mb-1">Radio: {filterDistance} km</label>
                     <input 
-                      type="range" 
-                      min="1" 
-                      max="20" 
-                      value={filterDistance} 
+                      type="range" min="1" max="20" value={filterDistance} 
                       onChange={(e) => setFilterDistance(Number(e.target.value))}
                       className="w-full accent-indigo-600"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Tipo de jornada:</label>
-                    <div className="flex space-x-2">
-                      {['Todos', 'Medio tiempo', 'Tiempo Completo'].map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setFilterType(type)}
-                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium ${
-                            filterType === type ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-600 border-slate-200'
-                          }`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* TARJETAS DE VACANTES */}
-            {loading ? (
-              <div className="text-center py-20 space-y-3">
-                <div className="animate-spin text-indigo-600 text-3xl mx-auto">🌀</div>
-                <p className="text-xs text-slate-500">Cargando vacantes reales...</p>
-              </div>
-            ) : filteredJobs.length === 0 ? (
-              <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm border border-slate-100 my-10">
-                <div className="text-4xl">🏪</div>
-                <h3 className="font-bold text-lg text-slate-800">No hay vacantes en este rango</h3>
-                <p className="text-xs text-slate-500">Aumenta el radio en los filtros para explorar más zona.</p>
-              </div>
-            ) : jobIndex < filteredJobs.length ? (
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[480px]">
-                <div>
-                  {/* IMAGEN DE BANNER/LOGO DEL NEGOCIO */}
-                  <div className="h-32 bg-slate-100 relative overflow-hidden flex items-center justify-center">
-                    {filteredJobs[jobIndex].logo ? (
-                      <img 
-                        src={filteredJobs[jobIndex].logo} 
-                        alt="Logo del negocio" 
-                        className="w-full h-full object-cover" 
-                      />
-                    ) : (
-                      <div className="text-4xl">🏪</div>
-                    )}
-                    <div className="absolute top-3 right-3 bg-emerald-500 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
-                      <MapPin size={10} />
-                      <span>
-                        {userCoords && filteredJobs[jobIndex].lat && filteredJobs[jobIndex].lng
-                          ? `${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km de ti`
-                          : 'Ubicación local'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-5 space-y-4">
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-xl leading-snug">
-                        {filteredJobs[jobIndex].title}
-                      </h3>
-                      <p className="text-xs font-semibold text-indigo-600">
-                        {filteredJobs[jobIndex].company}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-slate-50 p-2.5 rounded-xl flex items-center space-x-2 text-slate-700">
-                        <DollarSign size={14} className="text-emerald-500" />
-                        <span className="font-medium">{filteredJobs[jobIndex].salary}</span>
-                      </div>
-                      <div className="bg-slate-50 p-2.5 rounded-xl flex items-center space-x-2 text-slate-700">
-                        <Clock size={14} className="text-amber-500" />
-                        <span className="font-medium">{filteredJobs[jobIndex].schedule}</span>
+            {/* VISTA PARA CANDIDATOS (BUSCAR TRABAJO) */}
+            {userRole === 'seeker' ? (
+              loading ? (
+                <div className="text-center py-20 text-xs text-slate-500 animate-pulse">Buscando empleo local... 🌀</div>
+              ) : jobIndex < filteredJobs.length ? (
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[480px] animate-fadeIn">
+                  <div>
+                    <div className="h-32 bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                      {filteredJobs[jobIndex].logo ? (
+                        <img src={filteredJobs[jobIndex].logo} alt="Logo" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-4xl">🏪</div>
+                      )}
+                      <div className="absolute top-3 right-3 bg-emerald-500 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
+                        <MapPin size={10} />
+                        <span>
+                          {userCoords && filteredJobs[jobIndex].lat && filteredJobs[jobIndex].lng
+                            ? `${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km`
+                            : 'Cerca de ti'}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dirección física</h4>
-                      <p className="text-xs text-slate-700 font-medium">
-                        📍 {filteredJobs[jobIndex].address || 'Dirección registrada'}
-                      </p>
-                    </div>
+                    <div className="p-5 space-y-3">
+                      <h3 className="font-bold text-slate-900 text-xl">{filteredJobs[jobIndex].title}</h3>
+                      <p className="text-xs font-semibold text-indigo-600">{filteredJobs[jobIndex].company}</p>
 
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Descripción</h4>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        {filteredJobs[jobIndex].description}
-                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-slate-50 p-2 rounded-xl flex items-center space-x-2">
+                          <DollarSign size={14} className="text-emerald-500" />
+                          <span>{filteredJobs[jobIndex].salary}</span>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl flex items-center space-x-2">
+                          <Clock size={14} className="text-amber-500" />
+                          <span>{filteredJobs[jobIndex].schedule}</span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed">{filteredJobs[jobIndex].description}</p>
                     </div>
                   </div>
-                </div>
 
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-around items-center">
-                  <button 
-                    onClick={handlePass}
-                    className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border border-slate-100"
-                  >
-                    <X size={26} />
-                  </button>
-                  <button 
-                    onClick={() => handleLike(filteredJobs[jobIndex])}
-                    className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full shadow-lg flex items-center justify-center transition"
-                  >
-                    <Heart size={30} className="fill-white" />
-                  </button>
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-around">
+                    <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
+                      <X size={26} />
+                    </button>
+                    <button onClick={() => handleLike(filteredJobs[jobIndex])} className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition">
+                      <Heart size={30} className="fill-white" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm my-10">
+                  <div className="text-4xl">🎉</div>
+                  <h3 className="font-bold text-slate-800">Has visto todas las vacantes</h3>
+                  <button onClick={() => setJobIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Reiniciar Lista</button>
+                </div>
+              )
             ) : (
-              <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm border border-slate-100 my-10">
-                <div className="text-4xl">🎉</div>
-                <h3 className="font-bold text-lg text-slate-800">¡Has visto todas las vacantes cercanas!</h3>
-                <button 
-                  onClick={() => setJobIndex(0)}
-                  className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl"
-                >
-                  Volver a revisar
-                </button>
-              </div>
+
+              /* VISTA PARA NEGOCIOS (BUSCAR PROSPECTOS / CANDIDATOS) */
+              candidateIndex < candidates.length ? (
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[480px] animate-fadeIn">
+                  <div>
+                    <div className="h-28 bg-indigo-100 relative overflow-hidden flex items-center justify-center">
+                      <img src={candidates[candidateIndex].banner} alt="Portada" className="w-full h-full object-cover" />
+                      <div className="absolute top-3 right-3 bg-indigo-600 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
+                        <UserCheck size={10} />
+                        <span>Candidato Disponible</span>
+                      </div>
+                    </div>
+
+                    <div className="px-5 relative flex justify-between items-end -mt-10 mb-3">
+                      <div className="w-18 h-18 rounded-2xl bg-white p-1 shadow-md">
+                        <img src={candidates[candidateIndex].avatar} alt="Perfil" className="w-full h-full object-cover rounded-xl" />
+                      </div>
+                    </div>
+
+                    <div className="p-5 pt-0 space-y-3">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-xl">{candidates[candidateIndex].name}</h3>
+                        <p className="text-xs font-semibold text-indigo-600">{candidates[candidateIndex].role} • {candidates[candidateIndex].age}</p>
+                      </div>
+
+                      <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/50 space-y-1">
+                        <h4 className="text-[10px] font-bold text-indigo-400 uppercase">Habilidades</h4>
+                        <p className="text-xs font-medium text-indigo-900">{candidates[candidateIndex].skills}</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase">Sobre mí</h4>
+                        <p className="text-xs text-slate-600 leading-relaxed">{candidates[candidateIndex].bio}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-around">
+                    <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
+                      <X size={26} />
+                    </button>
+                    <button onClick={() => handleLike(candidates[candidateIndex])} className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition">
+                      <Heart size={30} className="fill-white" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl p-8 text-center space-y-4 shadow-sm my-10">
+                  <div className="text-4xl">👨‍🎓</div>
+                  <h3 className="font-bold text-slate-800">Has visto todos los prospectos disponibles</h3>
+                  <button onClick={() => setCandidateIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Volver a revisar prospectos</button>
+                </div>
+              )
             )}
+
           </div>
         )}
 
-        {/* PERFIL DEL CANDIDATO CON FOTOS */}
+        {/* PERFIL CANDIDATO */}
         {currentPage === 'profile' && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 animate-fadeIn">
             <h2 className="font-black text-xl text-slate-900">Tu Perfil de Candidato 👤</h2>
-            
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden space-y-4 pb-5">
-              {/* BANNER DE PORTADA */}
-              <div className="h-28 bg-indigo-100 relative flex items-center justify-center overflow-hidden group">
+              <div className="h-28 bg-indigo-100 relative flex items-center justify-center overflow-hidden">
                 {candidateProfile.banner ? (
                   <img src={candidateProfile.banner} alt="Banner" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-xs text-indigo-400 font-medium">Sin foto de portada</span>
+                  <span className="text-xs text-indigo-400">Sin foto de portada</span>
                 )}
-                <label className="absolute bottom-2 right-2 bg-slate-900/70 text-white p-2 rounded-xl cursor-pointer hover:bg-slate-900 transition">
+                <label className="absolute bottom-2 right-2 bg-slate-900/70 text-white p-2 rounded-xl cursor-pointer">
                   <Camera size={14} />
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={(e) => handleProfileImageUpload(e, 'banner')} 
-                    className="hidden" 
-                  />
+                  <input type="file" accept="image/*" onChange={(e) => handleProfileImageUpload(e, 'banner')} className="hidden" />
                 </label>
               </div>
 
-              {/* FOTO DE PERFIL */}
               <div className="px-5 relative flex justify-between items-end -mt-12">
                 <div className="relative w-20 h-20 rounded-2xl bg-white p-1 shadow-md">
                   <div className="w-full h-full rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
@@ -521,45 +513,23 @@ export default function App() {
                   </div>
                   <label className="absolute -bottom-1 -right-1 bg-indigo-600 text-white p-1.5 rounded-lg cursor-pointer shadow">
                     <Camera size={12} />
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={(e) => handleProfileImageUpload(e, 'avatar')} 
-                      className="hidden" 
-                    />
+                    <input type="file" accept="image/*" onChange={(e) => handleProfileImageUpload(e, 'avatar')} className="hidden" />
                   </label>
                 </div>
               </div>
 
-              {/* DATOS DEL PERFIL */}
               <div className="px-5 space-y-3">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase">Nombre Completo</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.name} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})}
-                    className="w-full font-bold text-slate-800 text-sm border-b border-slate-100 focus:outline-none py-1"
-                  />
+                  <input type="text" value={candidateProfile.name} onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})} className="w-full font-bold text-slate-800 text-sm border-b py-1" />
                 </div>
-
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase">Habilidades Clave</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.skills} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})}
-                    className="w-full text-xs text-slate-600 border-b border-slate-100 focus:outline-none py-1"
-                  />
+                  <input type="text" value={candidateProfile.skills} onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})} className="w-full text-xs text-slate-600 border-b py-1" />
                 </div>
-
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase">Sobre ti</label>
-                  <textarea 
-                    value={candidateProfile.bio} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})}
-                    className="w-full text-xs text-slate-600 border border-slate-100 rounded-xl p-2 focus:outline-none h-16 mt-1"
-                  ></textarea>
+                  <textarea value={candidateProfile.bio} onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})} className="w-full text-xs text-slate-600 border rounded-xl p-2 h-16 mt-1"></textarea>
                 </div>
               </div>
             </div>
@@ -568,7 +538,7 @@ export default function App() {
 
         {/* MATCHES */}
         {currentPage === 'matches' && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 animate-fadeIn">
             <h2 className="font-black text-xl text-slate-900">Tus Matches 🎉</h2>
             {matches.length === 0 ? (
               <p className="text-xs text-slate-500 py-10 text-center">Aún no tienes contactos guardados.</p>
@@ -578,11 +548,11 @@ export default function App() {
                   <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center text-xl">
-                        {item.logo ? <img src={item.logo} alt="Logo" className="w-full h-full object-cover" /> : '💼'}
+                        {item.logo || item.avatar ? <img src={item.logo || item.avatar} alt="Logo" className="w-full h-full object-cover" /> : '💼'}
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm text-slate-800">{item.title}</h4>
-                        <p className="text-xs text-slate-500">{item.company}</p>
+                        <h4 className="font-bold text-sm text-slate-800">{item.title || item.name}</h4>
+                        <p className="text-xs text-slate-500">{item.company || item.role}</p>
                       </div>
                     </div>
                     <button className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
@@ -595,119 +565,38 @@ export default function App() {
           </div>
         )}
 
-        {/* FORMULARIO PUBLICAR VACANTE */}
+        {/* PUBLICAR VACANTE */}
         {currentPage === 'post-job' && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 animate-fadeIn">
             <h2 className="font-black text-xl text-slate-900">Publicar vacante de tu Negocio 🏪</h2>
-            <form onSubmit={handlePostJob} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-              
-              {/* SUBIR FOTO/LOGO DEL NEGOCIO */}
+            <form onSubmit={handlePostJob} className="bg-white p-5 rounded-3xl shadow-sm border space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Imagen o Logo del Negocio</label>
                 <div className="flex items-center space-x-3">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
-                    {businessLogo ? (
-                      <img src={businessLogo} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon className="text-slate-400" size={24} />
-                    )}
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 border overflow-hidden flex items-center justify-center">
+                    {businessLogo ? <img src={businessLogo} alt="Preview" className="w-full h-full object-cover" /> : <ImageIcon className="text-slate-400" size={24} />}
                   </div>
-                  <label className="bg-indigo-50 text-indigo-600 text-xs font-bold px-3 py-2 rounded-xl border border-indigo-100 cursor-pointer flex items-center space-x-1">
+                  <label className="bg-indigo-50 text-indigo-600 text-xs font-bold px-3 py-2 rounded-xl cursor-pointer flex items-center space-x-1">
                     <Upload size={14} />
                     <span>{businessLogo ? 'Cambiar Foto' : 'Subir Foto'}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleBusinessLogoUpload} 
-                      className="hidden" 
-                    />
+                    <input type="file" accept="image/*" onChange={handleBusinessLogoUpload} className="hidden" />
                   </label>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Nombre del puesto</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej. Barista, Auxiliar de Tienda" 
-                  value={newTitle} 
-                  onChange={(e) => setNewTitle(e.target.value)} 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs" 
-                  required 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Nombre de tu negocio</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej. Café El Roble" 
-                  value={newCompany} 
-                  onChange={(e) => setNewCompany(e.target.value)} 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs" 
-                  required 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Calle, Número y Colonia exacta</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej. Calle Morelos 123, Centro" 
-                  value={newAddress} 
-                  onChange={(e) => setNewAddress(e.target.value)} 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs" 
-                  required 
-                />
-                <span className="text-[10px] text-slate-400">Calcularemos las coordenadas geográficas automáticamente.</span>
-              </div>
+              <input type="text" placeholder="Ej. Barista" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
+              <input type="text" placeholder="Ej. Café El Roble" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
+              <input type="text" placeholder="Calle, Número y Colonia" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
 
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Salario</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. $8,000 / mes" 
-                    value={newSalary} 
-                    onChange={(e) => setNewSalary(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs" 
-                    required 
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Horario</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. Medio Tiempo" 
-                    value={newSchedule} 
-                    onChange={(e) => setNewSchedule(e.target.value)} 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs" 
-                    required 
-                  />
-                </div>
+                <input type="text" placeholder="Ej. $8,000/mes" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
+                <input type="text" placeholder="Ej. Medio Tiempo" value={newSchedule} onChange={(e) => setNewSchedule(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs" required />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Descripción</label>
-                <textarea 
-                  placeholder="Descripción de actividades..." 
-                  value={newDesc} 
-                  onChange={(e) => setNewDesc(e.target.value)} 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs h-20" 
-                  required
-                ></textarea>
-              </div>
+              <textarea placeholder="Descripción del puesto..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full bg-slate-50 border rounded-xl p-3 text-xs h-20" required></textarea>
 
-              <button 
-                type="submit" 
-                disabled={isGeocoding}
-                className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center space-x-2"
-              >
-                {isGeocoding ? (
-                  <span>Guardando y Calculando GPS... 🌀</span>
-                ) : (
-                  <span>Publicar Vacante Instantáneamente</span>
-                )}
+              <button type="submit" disabled={isGeocoding} className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition">
+                {isGeocoding ? 'Guardando...' : 'Publicar Vacante'}
               </button>
             </form>
           </div>
@@ -718,45 +607,38 @@ export default function App() {
       {/* POPUP DE MATCH */}
       {showMatchModal && lastMatch && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 text-center space-y-4 max-w-xs w-full shadow-2xl">
+          <div className="bg-white rounded-3xl p-6 text-center space-y-4 max-w-xs w-full shadow-2xl animate-bounce">
             <div className="text-5xl">🎉</div>
             <h3 className="font-black text-2xl text-slate-900">¡Hicieron Match!</h3>
             <p className="text-xs text-slate-500">
-              Interés guardado en <span className="font-bold text-indigo-600">{lastMatch.title}</span>.
+              Interés mutuo guardado en <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>.
             </p>
-            <button 
-              onClick={() => setShowMatchModal(false)}
-              className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs"
-            >
-              Continuar
-            </button>
+            <button onClick={() => setShowMatchModal(false)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs">Continuar</button>
           </div>
         </div>
       )}
 
       {/* BARRA INFERIOR DE NAVEGACIÓN */}
       {currentPage !== 'landing' && (
-        <nav className="fixed bottom-0 max-w-md w-full bg-white border-t border-slate-100 px-6 py-2.5 flex justify-around items-center z-30">
-          <button 
-            onClick={() => { setJobIndex(0); setCurrentPage('explore'); }}
-            className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-600' : 'text-slate-400'}`}
-          >
+        <nav className="fixed bottom-0 max-w-md w-full bg-white/90 backdrop-blur-md border-t border-slate-100 px-6 py-2.5 flex justify-around items-center z-30">
+          <button onClick={() => navigateTo('explore')} className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
             <Search size={20} />
             <span className="text-[10px] font-bold">Explorar</span>
           </button>
 
-          <button 
-            onClick={() => setCurrentPage('profile')}
-            className={`flex flex-col items-center space-y-1 ${currentPage === 'profile' ? 'text-indigo-600' : 'text-slate-400'}`}
-          >
-            <User size={20} />
-            <span className="text-[10px] font-bold">Mi Perfil</span>
-          </button>
+          {userRole === 'business' ? (
+            <button onClick={() => navigateTo('post-job')} className={`flex flex-col items-center space-y-1 ${currentPage === 'post-job' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
+              <Building size={20} />
+              <span className="text-[10px] font-bold">Publicar</span>
+            </button>
+          ) : (
+            <button onClick={() => navigateTo('profile')} className={`flex flex-col items-center space-y-1 ${currentPage === 'profile' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
+              <User size={20} />
+              <span className="text-[10px] font-bold">Perfil</span>
+            </button>
+          )}
 
-          <button 
-            onClick={() => setCurrentPage('matches')}
-            className={`flex flex-col items-center space-y-1 ${currentPage === 'matches' ? 'text-indigo-600' : 'text-slate-400'}`}
-          >
+          <button onClick={() => navigateTo('matches')} className={`flex flex-col items-center space-y-1 ${currentPage === 'matches' ? 'text-indigo-600 scale-110' : 'text-slate-400'} transition`}>
             <MessageSquare size={20} />
             <span className="text-[10px] font-bold">Matches</span>
           </button>
