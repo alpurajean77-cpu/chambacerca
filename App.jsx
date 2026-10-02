@@ -5,14 +5,14 @@ import {
   Sliders, Navigation, Camera, Image as ImageIcon, Upload,
   UserCheck, Crosshair, Map as MapIcon, Check, Save, Loader2,
   Trash2, CheckCircle, ShieldAlert, Settings, Palette, Volume2,
-  Phone, Lock, Flag, EyeOff, Sparkles, Moon, Sun, FileText
+  Phone, Lock, Flag, EyeOff, Sparkles, Send, ShieldCheck, ArrowLeft
 } from 'lucide-react';
 
 // Importaciones de Firebase
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, query,
-  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where 
+  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where, orderBy 
 } from 'firebase/firestore';
 
 // Configuración de Firebase
@@ -81,9 +81,20 @@ const playSound = (type) => {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
       osc.start();
       osc.stop(ctx.currentTime + 0.05);
+    } else if (type === 'message') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.16);
     }
   } catch (e) {
-    console.log("Audio not allowed yet", e);
+    console.log("Audio no disponible aún", e);
   }
 };
 
@@ -338,10 +349,24 @@ export default function App() {
   const [userCoords, setUserCoords] = useState(null);
   const [geoStatus, setGeoStatus] = useState('Obteniendo GPS...');
 
+  // FILTRO DE RADAR / DISTANCIA (km)
+  const [distanceFilter, setDistanceFilter] = useState(15); 
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // CHAT EN TIEMPO REAL
+  const [activeChat, setActiveChat] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [newMessageText, setNewMessageText] = useState('');
+
   // MODAL DE POLITICA Y REPORTE
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
+  const [reportReason, setReportReason] = useState('🚫 Perfil o empleo falso / fraude');
+
+  // MODERACIÓN / PANEL ADMIN
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [reportsList, setReportsList] = useState([]);
 
   // SIMULADOR INICIO DE SESIÓN
   const [phoneAuthNumber, setPhoneAuthNumber] = useState('');
@@ -381,6 +406,7 @@ export default function App() {
     }, 250);
   };
 
+  // OBTENER GEOLOCALIZACIÓN NATIVA
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -459,7 +485,7 @@ export default function App() {
   useEffect(() => {
     const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const matchDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data().item }));
+      const matchDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data().item, matchDocId: d.id }));
       setMatches(matchDocs);
     }, (err) => console.error("Error al obtener matches:", err));
 
@@ -481,6 +507,38 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // ESCUCHAR CHAT ACTIVO
+  useEffect(() => {
+    if (!activeChat) return;
+
+    const chatId = activeChat.matchDocId || activeChat.id;
+    const q = query(
+      collection(db, "chats", chatId, "mensajes"),
+      orderBy("createdAt", "asc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setChatMessages(msgs);
+    }, (err) => {
+      console.error("Error al obtener mensajes:", err);
+    });
+
+    return () => unsubscribe();
+  }, [activeChat]);
+
+  // ESCUCHAR REPORTES PARA PANEL DE ADMIN
+  useEffect(() => {
+    if (!isAdmin) return;
+    const q = query(collection(db, "reportes"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setReportsList(list);
+    }, (err) => console.error(err));
+
+    return () => unsubscribe();
+  }, [isAdmin]);
+
   // GUARDAR PERFIL
   const handleSaveProfile = async () => {
     playSound('click');
@@ -500,6 +558,28 @@ export default function App() {
       console.error("Error al guardar perfil:", err);
       setIsSavingProfile(false);
       alert(`Error al guardar perfil: ${err.message}`);
+    }
+  };
+
+  // ENVIAR MENSAJE DE CHAT
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessageText.trim() || !activeChat) return;
+
+    const textToSend = newMessageText;
+    setNewMessageText('');
+    playSound('message');
+
+    const chatId = activeChat.matchDocId || activeChat.id;
+
+    try {
+      await addDoc(collection(db, "chats", chatId, "mensajes"), {
+        senderId: currentUserId,
+        text: textToSend,
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Error al enviar mensaje:", err);
     }
   };
 
@@ -567,7 +647,7 @@ export default function App() {
         lng: selectedCoords.lng,
         logo: businessLogo || null,
         ownerId: currentUserId,
-        status: 'active', // 'active' u 'filled'
+        status: 'active',
         createdAt: serverTimestamp()
       });
 
@@ -611,13 +691,62 @@ export default function App() {
     else setCandidateIndex(candidateIndex + 1);
   };
 
-  const handleReportSubmit = () => {
-    alert("🚩 Reporte enviado con éxito. Nuestro equipo de seguridad revisará este perfil/vacante en un lapso de 24 horas.");
-    setShowReportModal(false);
+  // ENVIAR REPORTE A LA BASE DE DATOS
+  const handleReportSubmit = async () => {
+    if (!reportTarget) return;
+
+    try {
+      await addDoc(collection(db, "reportes"), {
+        targetId: reportTarget.id,
+        targetTitle: reportTarget.title || reportTarget.name || 'Sin nombre',
+        targetType: userRole === 'seeker' ? 'vacante' : 'candidato',
+        reason: reportReason,
+        reporterId: currentUserId,
+        status: 'pendiente',
+        createdAt: serverTimestamp()
+      });
+
+      playSound('click');
+      alert("🚩 Reporte registrado. El equipo de administración revisará la alerta.");
+      setShowReportModal(false);
+    } catch (err) {
+      console.error("Error al reportar:", err);
+      alert("No se pudo enviar el reporte.");
+    }
   };
 
-  // FILTRAR VACANTES (Oculta automáticamente las vacantes marcadas como "filled" / Ocupadas)
-  const filteredJobs = jobs.filter(job => job.status !== 'filled');
+  // RESOLVER REPORTE COMO ADMIN (Baja de vacante/perfil)
+  const handleAdminResolve = async (reportItem, action) => {
+    playSound('click');
+    try {
+      if (action === 'delete') {
+        if (reportItem.targetType === 'vacante') {
+          await deleteDoc(doc(db, "vacantes", reportItem.targetId));
+        } else {
+          await deleteDoc(doc(db, "perfiles", reportItem.targetId));
+        }
+      }
+      await deleteDoc(doc(db, "reportes", reportItem.id));
+      alert(action === 'delete' ? "Elemento eliminado y reporte resuelto." : "Reporte descartado.");
+    } catch (err) {
+      console.error(err);
+      alert("Error al procesar acción de administración.");
+    }
+  };
+
+  // FILTRADO CON RADAR DE DISTANCIA
+  const filteredJobs = jobs.filter(job => {
+    if (job.status === 'filled') return false;
+    if (!userCoords || !job.lat || !job.lng) return true;
+    const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, job.lat, job.lng);
+    return dist === null || parseFloat(dist) <= distanceFilter;
+  });
+
+  const filteredCandidates = candidates.filter(cand => {
+    if (!userCoords || !cand.lat || !cand.lng) return true;
+    const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, cand.lat, cand.lng);
+    return dist === null || parseFloat(dist) <= distanceFilter;
+  });
 
   // MIS VACANTES CREADAS
   const myPostedJobs = jobs.filter(job => job.ownerId === currentUserId);
@@ -658,7 +787,7 @@ export default function App() {
         <div className="w-96 h-96 bg-indigo-500/30 backdrop-blur-xl rounded-full animate-ping"></div>
       </div>
 
-      {currentPage !== 'landing' && (
+      {currentPage !== 'landing' && !activeChat && (
         <header className={`${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/80 border-slate-100'} backdrop-blur-md border-b px-4 py-3 flex justify-between items-center sticky top-0 z-30`}>
           <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo('explore', userRole)}>
             <div className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9 shadow-md shadow-indigo-200">
@@ -732,23 +861,52 @@ export default function App() {
           </div>
         )}
 
-        {/* EXPLORAR / MATCHING */}
+        {/* EXPLORAR / MATCHING CON RADAR DE DISTANCIA */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            <div className={`p-3 rounded-2xl shadow-sm border flex justify-between items-center ${getCardClasses()}`}>
-              <div className="flex items-center space-x-2 text-xs font-semibold">
-                <Navigation size={14} className="text-indigo-500 animate-pulse" />
-                <span>{geoStatus}</span>
-                <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                  {userRole === 'seeker' ? 'Vacantes Activas' : `Candidatos (${candidates.length})`}
-                </span>
+            {/* BARRA DE RADAR / GPS */}
+            <div className={`p-3 rounded-2xl shadow-sm border space-y-2 ${getCardClasses()}`}>
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <div className="flex items-center space-x-2">
+                  <Navigation size={14} className="text-indigo-500 animate-pulse" />
+                  <span>{geoStatus}</span>
+                  <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                    {userRole === 'seeker' ? `${filteredJobs.length} Vacantes` : `${filteredCandidates.length} Candidatos`}
+                  </span>
+                </div>
+
+                <button 
+                  onClick={() => setShowFilterPanel(!showFilterPanel)}
+                  className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[11px] font-bold flex items-center space-x-1 border border-indigo-100"
+                >
+                  <Sliders size={12} />
+                  <span>Radar: {distanceFilter} km</span>
+                </button>
               </div>
+
+              {/* SLIDER DE DISTANCIA (RADAR) */}
+              {showFilterPanel && (
+                <div className="pt-2 border-t space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold opacity-70">
+                    <span>Radio de búsqueda:</span>
+                    <span className="text-indigo-600 font-extrabold">{distanceFilter} km</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="1" 
+                    max="50" 
+                    value={distanceFilter}
+                    onChange={(e) => setDistanceFilter(Number(e.target.value))}
+                    className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                  />
+                </div>
+              )}
             </div>
 
             {userRole === 'seeker' ? (
               loading ? (
-                <div className="text-center py-20 text-xs text-slate-500 animate-pulse">Cargando vacantes... 🌀</div>
+                <div className="text-center py-20 text-xs text-slate-500 animate-pulse">Cargando vacantes cercanas... 🌀</div>
               ) : jobIndex < filteredJobs.length ? (
                 <div className={`rounded-3xl shadow-xl border overflow-hidden flex flex-col justify-between min-h-[480px] relative ${getCardClasses()}`}>
                   <div>
@@ -814,17 +972,18 @@ export default function App() {
               ) : (
                 <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
                   <div className="text-4xl">🎉</div>
-                  <h3 className="font-bold">Has visto todas las vacantes activas</h3>
+                  <h3 className="font-bold">Has visto todas las vacantes en un radio de {distanceFilter} km</h3>
+                  <p className="text-xs opacity-60">Prueba ampliando el rango del radar arriba.</p>
                   <button onClick={() => setJobIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Reiniciar Lista</button>
                 </div>
               )
             ) : (
-              candidateIndex < candidates.length ? (
+              candidateIndex < filteredCandidates.length ? (
                 <div className={`rounded-3xl shadow-xl border overflow-hidden flex flex-col justify-between min-h-[480px] relative ${getCardClasses()}`}>
                   <div>
                     <div className="h-28 bg-indigo-100 relative overflow-hidden flex items-center justify-center">
-                      {candidates[candidateIndex].banner ? (
-                        <img src={candidates[candidateIndex].banner} alt="Portada" className="w-full h-full object-cover" />
+                      {filteredCandidates[candidateIndex].banner ? (
+                        <img src={filteredCandidates[candidateIndex].banner} alt="Portada" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center text-white/50 text-xs">
                           Sin Foto de Portada
@@ -832,7 +991,7 @@ export default function App() {
                       )}
                       
                       <button 
-                        onClick={() => { setReportTarget(candidates[candidateIndex]); setShowReportModal(true); }}
+                        onClick={() => { setReportTarget(filteredCandidates[candidateIndex]); setShowReportModal(true); }}
                         className="absolute top-3 left-3 bg-slate-900/60 text-white p-1.5 rounded-full backdrop-blur-md"
                         title="Reportar candidato"
                       >
@@ -842,8 +1001,8 @@ export default function App() {
 
                     <div className="px-5 relative flex justify-between items-end -mt-10 mb-3">
                       <div className="w-18 h-18 rounded-2xl bg-white p-1 shadow-md">
-                        {candidates[candidateIndex].avatar ? (
-                          <img src={candidates[candidateIndex].avatar} alt="Perfil" className="w-full h-full object-cover rounded-xl" />
+                        {filteredCandidates[candidateIndex].avatar ? (
+                          <img src={filteredCandidates[candidateIndex].avatar} alt="Perfil" className="w-full h-full object-cover rounded-xl" />
                         ) : (
                           <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center text-2xl">👨‍🎓</div>
                         )}
@@ -853,24 +1012,24 @@ export default function App() {
                     <div className="p-5 pt-0 space-y-3">
                       <div>
                         <h3 className="font-bold text-xl">
-                          {candidates[candidateIndex].name || 'Candidato sin Nombre'}
+                          {filteredCandidates[candidateIndex].name || 'Candidato sin Nombre'}
                         </h3>
                         <p className="text-xs font-bold text-indigo-500">
-                          {candidates[candidateIndex].role || 'Buscando Empleo'} • {candidates[candidateIndex].age || 'Sin edad'}
+                          {filteredCandidates[candidateIndex].role || 'Buscando Empleo'} • {filteredCandidates[candidateIndex].age || 'Sin edad'}
                         </p>
                       </div>
 
                       <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/50 space-y-1">
                         <h4 className="text-[10px] font-bold text-indigo-400 uppercase">Habilidades</h4>
                         <p className="text-xs font-medium text-indigo-900">
-                          {candidates[candidateIndex].skills || 'No especificadas'}
+                          {filteredCandidates[candidateIndex].skills || 'No especificadas'}
                         </p>
                       </div>
 
                       <div className="space-y-1">
                         <h4 className="text-[10px] font-bold opacity-40 uppercase">Sobre mí</h4>
                         <p className="text-xs opacity-80 leading-relaxed">
-                          {candidates[candidateIndex].bio || 'Sin descripción disponible.'}
+                          {filteredCandidates[candidateIndex].bio || 'Sin descripción disponible.'}
                         </p>
                       </div>
                     </div>
@@ -880,7 +1039,7 @@ export default function App() {
                     <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
                       <X size={26} />
                     </button>
-                    <button onClick={() => handleLike(candidates[candidateIndex])} className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition">
+                    <button onClick={() => handleLike(filteredCandidates[candidateIndex])} className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition">
                       <Heart size={30} className="fill-white" />
                     </button>
                   </div>
@@ -888,7 +1047,7 @@ export default function App() {
               ) : (
                 <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
                   <div className="text-4xl">👨‍🎓</div>
-                  <h3 className="font-bold">Has visto todos los prospectos</h3>
+                  <h3 className="font-bold">Has visto todos los prospectos cercanos</h3>
                   <button onClick={() => setCandidateIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Volver a revisar</button>
                 </div>
               )
@@ -897,8 +1056,89 @@ export default function App() {
           </div>
         )}
 
+        {/* CHAT DIRECTO EN TIEMPO REAL (MESSENGER) */}
+        {activeChat ? (
+          <div className="flex flex-col h-[85vh] bg-slate-50">
+            {/* CABECERA DEL CHAT */}
+            <div className="p-3 bg-white border-b flex items-center justify-between sticky top-0 z-20 shadow-sm">
+              <div className="flex items-center space-x-3">
+                <button onClick={() => setActiveChat(null)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-full">
+                  <ArrowLeft size={18} />
+                </button>
+
+                <div className="w-9 h-9 rounded-full bg-indigo-100 overflow-hidden flex items-center justify-center border">
+                  {activeChat.logo || activeChat.avatar ? (
+                    <img src={activeChat.logo || activeChat.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-sm">💬</span>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-xs text-slate-800">{activeChat.title || activeChat.name}</h3>
+                  <p className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>En línea</span>
+                  </p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => { setReportTarget(activeChat); setShowReportModal(true); }}
+                className="p-2 text-slate-400 hover:text-rose-500"
+                title="Reportar conversacion"
+              >
+                <Flag size={16} />
+              </button>
+            </div>
+
+            {/* LISTA DE MENSAJES */}
+            <div className="flex-1 p-4 overflow-y-auto space-y-3">
+              {chatMessages.length === 0 ? (
+                <div className="text-center py-10 space-y-2">
+                  <div className="text-3xl">👋</div>
+                  <p className="text-xs font-bold text-slate-600">¡Inicia la conversación!</p>
+                  <p className="text-[11px] text-slate-400">Pregunta sobre horarios, requisitos o agenda una cita.</p>
+                </div>
+              ) : (
+                chatMessages.map((msg) => {
+                  const isMe = msg.senderId === currentUserId;
+                  return (
+                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] p-3 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                        isMe 
+                          ? 'bg-indigo-600 text-white rounded-br-none' 
+                          : 'bg-white text-slate-800 border rounded-bl-none'
+                      }`}>
+                        <p>{msg.text}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* INPUT DE ENVÍO */}
+            <form onSubmit={handleSendMessage} className="p-3 bg-white border-t flex items-center space-x-2">
+              <input 
+                type="text" 
+                placeholder="Escribe un mensaje..."
+                value={newMessageText}
+                onChange={(e) => setNewMessageText(e.target.value)}
+                className="flex-1 bg-slate-100 border-none px-4 py-2.5 rounded-full text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button 
+                type="submit" 
+                className="p-2.5 bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition"
+              >
+                <Send size={16} />
+              </button>
+            </form>
+          </div>
+        ) : null}
+
         {/* PERFIL CANDIDATO */}
-        {currentPage === 'profile' && (
+        {currentPage === 'profile' && !activeChat && (
           <div className="p-4 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="font-black text-xl">Tu Perfil 👤</h2>
@@ -1004,7 +1244,7 @@ export default function App() {
         )}
 
         {/* SECCIÓN "MIS VACANTES" (GESTIÓN DE EMPLEOS PARA NEGOCIOS) */}
-        {currentPage === 'my-jobs' && (
+        {currentPage === 'my-jobs' && !activeChat && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-xl">Mis Vacantes Publicadas 🏪</h2>
             <p className="text-xs opacity-60">Gestiona o desactiva vacantes para que no aparezcan en el buscador.</p>
@@ -1054,12 +1294,12 @@ export default function App() {
           </div>
         )}
 
-        {/* CONFIGURACIÓN Y TEMA */}
-        {currentPage === 'settings' && (
+        {/* CONFIGURACIÓN Y PANEL DE ADMIN */}
+        {currentPage === 'settings' && !activeChat && (
           <div className="p-4 space-y-5">
             <h2 className="font-black text-xl">Configuración y Seguridad ⚙️</h2>
 
-            {/* A. TEMA DE COLOR */}
+            {/* A. APARIENCIA */}
             <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
               <div className="flex items-center space-x-2">
                 <Palette size={18} className="text-indigo-500" />
@@ -1139,7 +1379,62 @@ export default function App() {
               )}
             </div>
 
-            {/* C. POLITICAS DE SEGURIDAD */}
+            {/* C. MODO ADMINISTRADOR Y REPORTES */}
+            <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <ShieldCheck size={18} className="text-indigo-500" />
+                  <h3 className="font-bold text-sm">Panel de Moderación</h3>
+                </div>
+                <button 
+                  onClick={() => setIsAdmin(!isAdmin)}
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${isAdmin ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                >
+                  {isAdmin ? 'Admin Activo' : 'Activar Admin'}
+                </button>
+              </div>
+
+              {isAdmin ? (
+                <div className="pt-2 space-y-2 border-t">
+                  <p className="text-xs font-bold opacity-70">Reportes de seguridad pendientes ({reportsList.length}):</p>
+                  
+                  {reportsList.length === 0 ? (
+                    <p className="text-xs text-emerald-600 font-medium">✨ No hay denuncias activas en el sistema.</p>
+                  ) : (
+                    reportsList.map((rep) => (
+                      <div key={rep.id} className="p-3 bg-slate-500/5 rounded-2xl border text-xs space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-bold">{rep.targetTitle}</span>
+                            <p className="text-[10px] text-rose-500 font-semibold">{rep.reason}</p>
+                          </div>
+                          <span className="text-[9px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-md uppercase">{rep.targetType}</span>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => handleAdminResolve(rep, 'delete')}
+                            className="flex-1 bg-rose-600 text-white font-bold py-1.5 rounded-lg text-[11px]"
+                          >
+                            Darse de Baja
+                          </button>
+                          <button 
+                            onClick={() => handleAdminResolve(rep, 'dismiss')}
+                            className="bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-[11px]"
+                          >
+                            Desestimar
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs opacity-60">Activa el modo administrador para auditar y resolver denuncias de usuarios.</p>
+              )}
+            </div>
+
+            {/* D. POLITICAS DE SEGURIDAD */}
             <div className={`p-4 rounded-3xl border space-y-2 ${getCardClasses()}`}>
               <button 
                 onClick={() => setShowPrivacyModal(true)}
@@ -1156,12 +1451,12 @@ export default function App() {
           </div>
         )}
 
-        {/* MATCHES */}
-        {currentPage === 'matches' && (
+        {/* MATCHES Y LISTA DE CHATS */}
+        {currentPage === 'matches' && !activeChat && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl">Tus Matches 🎉</h2>
+            <h2 className="font-black text-xl">Tus Matches y Chats 🎉</h2>
             {matches.length === 0 ? (
-              <p className="text-xs opacity-50 py-10 text-center">Aún no tienes contactos guardados.</p>
+              <p className="text-xs opacity-50 py-10 text-center">Aún no tienes contactos guardados. ¡Sigue explorando!</p>
             ) : (
               <div className="space-y-3">
                 {matches.map((item, idx) => (
@@ -1175,8 +1470,13 @@ export default function App() {
                         <p className="text-xs opacity-60">{item.company || item.role || item.skills}</p>
                       </div>
                     </div>
-                    <button onClick={() => alert(`Iniciando chat con ${item.title || item.name}`)} className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
-                      <MessageSquare size={16} />
+                    
+                    <button 
+                      onClick={() => { playSound('click'); setActiveChat(item); }} 
+                      className="bg-indigo-600 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1 shadow-md hover:bg-indigo-700"
+                    >
+                      <MessageSquare size={14} />
+                      <span>Chat</span>
                     </button>
                   </div>
                 ))}
@@ -1186,7 +1486,7 @@ export default function App() {
         )}
 
         {/* PUBLICAR VACANTE */}
-        {currentPage === 'post-job' && (
+        {currentPage === 'post-job' && !activeChat && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-xl">Publicar vacante 🏪</h2>
             <form onSubmit={handlePostJob} className={`p-5 rounded-3xl border space-y-4 ${getCardClasses()}`}>
@@ -1274,9 +1574,9 @@ export default function App() {
               ¿Por qué deseas reportar a <span className="font-bold">{reportTarget?.title || reportTarget?.name}</span>?
             </p>
             <div className="space-y-2 text-xs">
-              <button onClick={handleReportSubmit} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🚫 Perfil o empleo falso / fraude</button>
-              <button onClick={handleReportSubmit} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🔞 Contenido inapropiado</button>
-              <button onClick={handleReportSubmit} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">⚠️ Spam o información engañosa</button>
+              <button onClick={() => { setReportReason("🚫 Perfil o empleo falso / fraude"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🚫 Perfil o empleo falso / fraude</button>
+              <button onClick={() => { setReportReason("🔞 Contenido inapropiado"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🔞 Contenido inapropiado</button>
+              <button onClick={() => { setReportReason("⚠️ Spam o información engañosa"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">⚠️️ Spam o información engañosa</button>
             </div>
             <button onClick={() => setShowReportModal(false)} className="w-full bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">Cancelar</button>
           </div>
@@ -1313,15 +1613,24 @@ export default function App() {
             <div className="text-5xl animate-bounce">🎉</div>
             <h3 className="font-black text-2xl bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">¡Hicieron Match!</h3>
             <p className="text-xs text-slate-500">
-              Interés registrado con <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>.
+              Interés registrado con <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>. Ahora pueden enviarse mensajes.
             </p>
-            <button onClick={() => setShowMatchModal(false)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg">Continuar Explorando</button>
+            <button 
+              onClick={() => {
+                setShowMatchModal(false);
+                setActiveChat(lastMatch);
+                navigateTo('matches');
+              }} 
+              className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg"
+            >
+              Iniciar Chat
+            </button>
           </div>
         </div>
       )}
 
       {/* NAVEGACIÓN INFERIOR */}
-      {currentPage !== 'landing' && (
+      {currentPage !== 'landing' && !activeChat && (
         <nav className={`fixed bottom-0 max-w-md w-full border-t px-4 py-2.5 flex justify-around items-center z-30 transition-colors ${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100'}`}>
           <button onClick={() => navigateTo('explore')} className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
             <Search size={20} />
