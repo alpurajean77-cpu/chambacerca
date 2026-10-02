@@ -5,7 +5,7 @@ import {
   Sliders, Navigation, Camera, Image as ImageIcon, Upload,
   UserCheck, Crosshair, Map as MapIcon, Check, Save, Loader2,
   Trash2, CheckCircle, ShieldAlert, Settings, Palette, Volume2,
-  Phone, Lock, Flag, EyeOff, Sparkles, Send, ShieldCheck, ArrowLeft
+  Phone, Lock, Flag, EyeOff, Sparkles, Send, ShieldCheck, ArrowLeft, Key
 } from 'lucide-react';
 
 // Importaciones de Firebase
@@ -94,7 +94,7 @@ const playSound = (type) => {
       osc.stop(ctx.currentTime + 0.16);
     }
   } catch (e) {
-    console.log("Audio no disponible aún", e);
+    console.log("Audio no disponible", e);
   }
 };
 
@@ -156,7 +156,7 @@ const DEMO_CANDIDATES = [
   }
 ];
 
-// MODAL MAPA
+// MODAL MAPA INTERACTIVO (LEAFLET)
 const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -325,11 +325,14 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
 export default function App() {
   const currentUserId = getUserId();
 
+  // CLAVE PRIVADA DE ADMINISTRADOR
+  const ADMIN_PIN = "2026";
+
   const [currentPage, setCurrentPage] = useState('landing'); 
   const [userRole, setUserRole] = useState('seeker'); 
   
   // ESTADO DE TEMA (PERSONALIZACIÓN DE COLORES Y MODO OSCURO)
-  const [theme, setTheme] = useState('indigo'); // 'indigo', 'dark', 'emerald', 'sunset'
+  const [theme, setTheme] = useState('indigo');
 
   const [jobs, setJobs] = useState([]);
   const [candidates, setCandidates] = useState([]);
@@ -364,8 +367,11 @@ export default function App() {
   const [reportTarget, setReportTarget] = useState(null);
   const [reportReason, setReportReason] = useState('🚫 Perfil o empleo falso / fraude');
 
-  // MODERACIÓN / PANEL ADMIN
+  // MODERACIÓN / PANEL ADMIN PROTEGIDO
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdminPinModal, setShowAdminPinModal] = useState(false);
+  const [enteredPin, setEnteredPin] = useState('');
+  const [pinError, setPinError] = useState('');
   const [reportsList, setReportsList] = useState([]);
 
   // SIMULADOR INICIO DE SESIÓN
@@ -538,6 +544,32 @@ export default function App() {
 
     return () => unsubscribe();
   }, [isAdmin]);
+
+  // FUNCIÓN CON VALIDADOR DE PIN PARA ACTIVAR MODO ADMIN
+  const handleToggleAdminClick = () => {
+    if (isAdmin) {
+      setIsAdmin(false);
+      playSound('click');
+    } else {
+      setEnteredPin('');
+      setPinError('');
+      setShowAdminPinModal(true);
+    }
+  };
+
+  const handleVerifyAdminPin = (e) => {
+    e.preventDefault();
+    if (enteredPin === ADMIN_PIN) {
+      setIsAdmin(true);
+      setShowAdminPinModal(false);
+      setEnteredPin('');
+      setPinError('');
+      playSound('match');
+    } else {
+      setPinError('❌ Clave incorrecta. Acceso denegado.');
+      playSound('pass');
+    }
+  };
 
   // GUARDAR PERFIL
   const handleSaveProfile = async () => {
@@ -715,7 +747,7 @@ export default function App() {
     }
   };
 
-  // RESOLVER REPORTE COMO ADMIN (Baja de vacante/perfil)
+  // RESOLVER REPORTE COMO ADMIN
   const handleAdminResolve = async (reportItem, action) => {
     playSound('click');
     try {
@@ -748,10 +780,8 @@ export default function App() {
     return dist === null || parseFloat(dist) <= distanceFilter;
   });
 
-  // MIS VACANTES CREADAS
   const myPostedJobs = jobs.filter(job => job.ownerId === currentUserId);
 
-  // CLASES DE TEMA SELECCIONADO
   const getThemeClasses = () => {
     switch (theme) {
       case 'dark':
@@ -1086,7 +1116,7 @@ export default function App() {
               <button 
                 onClick={() => { setReportTarget(activeChat); setShowReportModal(true); }}
                 className="p-2 text-slate-400 hover:text-rose-500"
-                title="Reportar conversacion"
+                title="Reportar conversación"
               >
                 <Flag size={16} />
               </button>
@@ -1379,7 +1409,7 @@ export default function App() {
               )}
             </div>
 
-            {/* C. MODO ADMINISTRADOR Y REPORTES */}
+            {/* C. MODO ADMINISTRADOR PROTEGIDO POR PIN */}
             <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -1387,7 +1417,7 @@ export default function App() {
                   <h3 className="font-bold text-sm">Panel de Moderación</h3>
                 </div>
                 <button 
-                  onClick={() => setIsAdmin(!isAdmin)}
+                  onClick={handleToggleAdminClick}
                   className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${isAdmin ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
                 >
                   {isAdmin ? 'Admin Activo' : 'Activar Admin'}
@@ -1430,7 +1460,7 @@ export default function App() {
                   )}
                 </div>
               ) : (
-                <p className="text-xs opacity-60">Activa el modo administrador para auditar y resolver denuncias de usuarios.</p>
+                <p className="text-xs opacity-60">Activa el modo administrador mediante tu PIN secreto para auditar denuncias.</p>
               )}
             </div>
 
@@ -1562,6 +1592,52 @@ export default function App() {
 
       </main>
 
+      {/* VENTANA MODAL PARA VALIDAR PIN DE ADMINISTRADOR */}
+      {showAdminPinModal && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
+            <div className="flex items-center space-x-2 text-indigo-600 font-bold text-sm">
+              <Key size={18} />
+              <span>Acceso de Administrador</span>
+            </div>
+            <p className="text-xs text-slate-500">
+              Ingresa tu PIN secreto para activar las herramientas de moderación.
+            </p>
+            
+            <form onSubmit={handleVerifyAdminPin} className="space-y-3">
+              <input 
+                type="password" 
+                placeholder="PIN Secreto"
+                value={enteredPin}
+                onChange={(e) => setEnteredPin(e.target.value)}
+                className="w-full bg-slate-100 border p-3 rounded-2xl text-center font-bold tracking-widest text-sm outline-none focus:ring-2 focus:ring-indigo-600"
+                autoFocus
+              />
+
+              {pinError && (
+                <p className="text-xs text-rose-500 font-bold text-center">{pinError}</p>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button 
+                  type="button" 
+                  onClick={() => setShowAdminPinModal(false)}
+                  className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md hover:bg-indigo-700"
+                >
+                  Entrar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* POPUP DE REPORTE DE SEGURIDAD */}
       {showReportModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1576,7 +1652,7 @@ export default function App() {
             <div className="space-y-2 text-xs">
               <button onClick={() => { setReportReason("🚫 Perfil o empleo falso / fraude"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🚫 Perfil o empleo falso / fraude</button>
               <button onClick={() => { setReportReason("🔞 Contenido inapropiado"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🔞 Contenido inapropiado</button>
-              <button onClick={() => { setReportReason("⚠️ Spam o información engañosa"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">⚠️️ Spam o información engañosa</button>
+              <button onClick={() => { setReportReason("⚠️ Spam o información engañosa"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">⚠️ Spam o información engañosa</button>
             </div>
             <button onClick={() => setShowReportModal(false)} className="w-full bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">Cancelar</button>
           </div>
@@ -1596,7 +1672,7 @@ export default function App() {
             </div>
 
             <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda estrictamente prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
+              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda strictly prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
               <p><strong>2. Protección de Datos Personales:</strong> ChambaCerca no comparte tu número de teléfono ni tus coordenadas exactas sin tu consentimiento directo al hacer match.</p>
               <p><strong>3. Verificación de Negocios:</strong> Los negocios deben utilizar direcciones geolocalizadas reales para garantizar ofertas de trabajo seguras para los jóvenes.</p>
             </div>
