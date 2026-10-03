@@ -12,7 +12,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, query,
-  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where, orderBy 
+  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where, orderBy, getDocs 
 } from 'firebase/firestore';
 
 // Configuración de Firebase
@@ -458,7 +458,7 @@ export default function App() {
     fetchProfile();
   }, [currentUserId]);
 
-  // ESCUCHAR TODOS LOS PERFILES
+  // ESCUCHAR TODOS LOS PERFILES REALES
   useEffect(() => {
     const q = query(collection(db, "perfiles"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -487,7 +487,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // MATCHES
+  // ESCUCHAR MATCHES EN TIEMPO REAL
   useEffect(() => {
     const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -545,7 +545,7 @@ export default function App() {
     return () => unsubscribe();
   }, [isAdmin]);
 
-  // FUNCIÓN CON VALIDADOR DE PIN PARA ACTIVAR MODO ADMIN
+  // FUNCIÓN PARA ACTIVAR MODO ADMIN CON PIN
   const handleToggleAdminClick = () => {
     if (isAdmin) {
       setIsAdmin(false);
@@ -571,7 +571,7 @@ export default function App() {
     }
   };
 
-  // GUARDAR PERFIL
+  // GUARDAR PERFIL EN FIRESTORE
   const handleSaveProfile = async () => {
     playSound('click');
     setIsSavingProfile(true);
@@ -591,6 +591,66 @@ export default function App() {
       setIsSavingProfile(false);
       alert(`Error al guardar perfil: ${err.message}`);
     }
+  };
+
+  // SISTEMA DE "LIKE" SILENCIOSO CON MATCH MUTUO VERDADERO (DOBLE OPT-IN)
+  const handleLike = async (item) => {
+    playSound('like');
+    
+    // Identificar el ID único del destinatario
+    const targetUserId = userRole === 'seeker' ? (item.ownerId || item.id) : item.id;
+
+    try {
+      // 1. Guardar nuestro "Like" en la base de datos
+      await addDoc(collection(db, "likes"), {
+        fromUserId: currentUserId,
+        toUserId: targetUserId,
+        createdAt: serverTimestamp()
+      });
+
+      // 2. Verificar si la otra persona YA nos había dado "Like" previamente
+      const reciprocalQuery = query(
+        collection(db, "likes"),
+        where("fromUserId", "==", targetUserId),
+        where("toUserId", "==", currentUserId)
+      );
+
+      const reciprocalSnap = await getDocs(reciprocalQuery);
+
+      // ¡SI EXISTE EL LIKE RECÍPROCO ES UN MATCH VERDADERO!
+      if (!reciprocalSnap.empty) {
+        setLastMatch(item);
+        setShowMatchModal(true);
+        playSound('match');
+
+        // Registrar el match para ambos usuarios
+        await addDoc(collection(db, "matches"), {
+          userId: currentUserId,
+          item: item,
+          role: userRole,
+          createdAt: serverTimestamp()
+        });
+
+        await addDoc(collection(db, "matches"), {
+          userId: targetUserId,
+          item: candidateProfile,
+          role: userRole === 'seeker' ? 'business' : 'seeker',
+          createdAt: serverTimestamp()
+        });
+      }
+    } catch (err) {
+      console.error("Error al procesar Like/Match:", err);
+    }
+
+    // Avanzar a la siguiente tarjeta sin falso show de match
+    if (userRole === 'seeker') setJobIndex(jobIndex + 1);
+    else setCandidateIndex(candidateIndex + 1);
+  };
+
+  const handlePass = () => {
+    playSound('pass');
+    if (userRole === 'seeker') setJobIndex(jobIndex + 1);
+    else setCandidateIndex(candidateIndex + 1);
   };
 
   // ENVIAR MENSAJE DE CHAT
@@ -694,33 +754,6 @@ export default function App() {
       console.error(err);
       alert('Error al publicar vacante.');
     }
-  };
-
-  const handleLike = async (item) => {
-    playSound('like');
-    setLastMatch(item);
-    setShowMatchModal(true);
-    setTimeout(() => playSound('match'), 150);
-
-    try {
-      await addDoc(collection(db, "matches"), {
-        userId: currentUserId,
-        item: item,
-        role: userRole,
-        createdAt: serverTimestamp()
-      });
-    } catch (err) {
-      console.error("Error al registrar match:", err);
-    }
-
-    if (userRole === 'seeker') setJobIndex(jobIndex + 1);
-    else setCandidateIndex(candidateIndex + 1);
-  };
-
-  const handlePass = () => {
-    playSound('pass');
-    if (userRole === 'seeker') setJobIndex(jobIndex + 1);
-    else setCandidateIndex(candidateIndex + 1);
   };
 
   // ENVIAR REPORTE A LA BASE DE DATOS
@@ -1672,7 +1705,7 @@ export default function App() {
             </div>
 
             <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda strictly prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
+              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda estrictamente prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
               <p><strong>2. Protección de Datos Personales:</strong> ChambaCerca no comparte tu número de teléfono ni tus coordenadas exactas sin tu consentimiento directo al hacer match.</p>
               <p><strong>3. Verificación de Negocios:</strong> Los negocios deben utilizar direcciones geolocalizadas reales para garantizar ofertas de trabajo seguras para los jóvenes.</p>
             </div>
@@ -1682,14 +1715,14 @@ export default function App() {
         </div>
       )}
 
-      {/* POPUP MATCH */}
+      {/* POPUP MATCH VERDADERO */}
       {showMatchModal && lastMatch && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white text-slate-800 rounded-3xl p-6 text-center space-y-4 max-w-xs w-full shadow-2xl">
             <div className="text-5xl animate-bounce">🎉</div>
-            <h3 className="font-black text-2xl bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">¡Hicieron Match!</h3>
+            <h3 className="font-black text-2xl bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">¡Hicieron Match Mutuo!</h3>
             <p className="text-xs text-slate-500">
-              Interés registrado con <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>. Ahora pueden enviarse mensajes.
+              ¡Interés recíproco confirmado con <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>! Se ha abierto la sala de chat.
             </p>
             <button 
               onClick={() => {
