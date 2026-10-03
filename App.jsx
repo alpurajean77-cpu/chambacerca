@@ -5,11 +5,19 @@ import {
   Sliders, Navigation, Camera, Image as ImageIcon, Upload,
   UserCheck, Crosshair, Map as MapIcon, Check, Save, Loader2,
   Trash2, CheckCircle, ShieldAlert, Settings, Palette, Volume2,
-  Phone, Lock, Flag, EyeOff, Sparkles, Send, ShieldCheck, ArrowLeft, Key
+  Phone, Lock, Flag, EyeOff, Sparkles, Send, ShieldCheck, ArrowLeft, Key, LogOut
 } from 'lucide-react';
 
 // Importaciones de Firebase
 import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber, 
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut 
+} from 'firebase/auth';
 import { 
   getFirestore, collection, addDoc, onSnapshot, query,
   doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where, orderBy, getDocs 
@@ -28,6 +36,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+
+// UID OFICIAL DEL ADMINISTRADOR ÚNICO
+const ADMIN_UID = "xsLI4WHTmeNVvP5rUavILtbEVUl1";
 
 // SINTETIZADOR DE SONIDOS NATIVO (Web Audio API)
 const playSound = (type) => {
@@ -96,15 +108,6 @@ const playSound = (type) => {
   } catch (e) {
     console.log("Audio no disponible", e);
   }
-};
-
-const getUserId = () => {
-  let uid = localStorage.getItem('chamba_user_id');
-  if (!uid) {
-    uid = 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-    localStorage.setItem('chamba_user_id', uid);
-  }
-  return uid;
 };
 
 function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
@@ -323,10 +326,9 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
 };
 
 export default function App() {
-  const currentUserId = getUserId();
-
-  // CLAVE PRIVADA DE ADMINISTRADOR
-  const ADMIN_PIN = "2026";
+  // USUARIO REAL AUTENTICADO
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState('');
 
   const [currentPage, setCurrentPage] = useState('landing'); 
   const [userRole, setUserRole] = useState('seeker'); 
@@ -367,16 +369,20 @@ export default function App() {
   const [reportTarget, setReportTarget] = useState(null);
   const [reportReason, setReportReason] = useState('🚫 Perfil o empleo falso / fraude');
 
-  // MODERACIÓN / PANEL ADMIN PROTEGIDO
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showAdminPinModal, setShowAdminPinModal] = useState(false);
-  const [enteredPin, setEnteredPin] = useState('');
-  const [pinError, setPinError] = useState('');
-  const [reportsList, setReportsList] = useState([]);
-
-  // SIMULADOR INICIO DE SESIÓN
+  // AUTENTICACIÓN DE TELÉFONO REAL (SMS + OTP)
   const [phoneAuthNumber, setPhoneAuthNumber] = useState('');
-  const [isLoggedInPhone, setIsLoggedInPhone] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState(null);
+
+  // MODERACIÓN / PANEL ADMIN CON Detección por UID
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminAuthError, setAdminAuthError] = useState('');
+  const [reportsList, setReportsList] = useState([]);
 
   // Perfil Candidato
   const [candidateProfile, setCandidateProfile] = useState({
@@ -400,6 +406,32 @@ export default function App() {
   const [newDesc, setNewDesc] = useState('');
   const [businessLogo, setBusinessLogo] = useState(null);
 
+  // ESCUCHAR ESTADO DE SESIÓN Y RECONOCER UID ADMIN
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user);
+        setCurrentUserId(user.uid);
+        // Validar si el UID autenticado es tu UID oficial de Admin
+        if (user.uid === ADMIN_UID) {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
+      } else {
+        let localUid = localStorage.getItem('chamba_user_id');
+        if (!localUid) {
+          localUid = 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+          localStorage.setItem('chamba_user_id', localUid);
+        }
+        setCurrentUserId(localUid);
+        setCurrentUser(null);
+        setIsAdmin(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const navigateTo = (page, role = userRole) => {
     playSound('click');
     setIsTransitioning(true);
@@ -412,7 +444,7 @@ export default function App() {
     }, 250);
   };
 
-  // OBTENER GEOLOCALIZACIÓN NATIVA
+  // GEOLOCALIZACIÓN NATIVA
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -430,6 +462,7 @@ export default function App() {
 
   // CARGAR MI PERFIL DESDE FIREBASE
   useEffect(() => {
+    if (!currentUserId) return;
     const fetchProfile = async () => {
       try {
         const docRef = doc(db, "perfiles", currentUserId);
@@ -439,11 +472,11 @@ export default function App() {
           setCandidateProfile(docSnap.data());
         } else {
           const initialData = {
-            name: 'Alex González',
+            name: 'Usuario ChambaCerca',
             age: '20 años',
-            role: 'Atención a Clientes / Barista',
-            skills: 'Atención al cliente, Caja, Cafetería',
-            bio: 'Estudiante enfocado en atención al cliente con disponibilidad inmediata.',
+            role: 'Buscando Empleo',
+            skills: 'Atención al cliente, Puntualidad',
+            bio: 'Perfil registrado en ChambaCerca.',
             avatar: null,
             banner: null
           };
@@ -458,14 +491,11 @@ export default function App() {
     fetchProfile();
   }, [currentUserId]);
 
-  // ESCUCHAR TODOS LOS PERFILES REALES
+  // ESCUCHAR PERFILES EN TIEMPO REAL
   useEffect(() => {
     const q = query(collection(db, "perfiles"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const realProfiles = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      }));
+      const realProfiles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
       realProfiles.sort((a, b) => {
         const timeA = a.updatedAt?.seconds || 0;
@@ -487,8 +517,9 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // ESCUCHAR MATCHES EN TIEMPO REAL
+  // MATCHES EN TIEMPO REAL
   useEffect(() => {
+    if (!currentUserId) return;
     const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const matchDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data().item, matchDocId: d.id }));
@@ -533,7 +564,7 @@ export default function App() {
     return () => unsubscribe();
   }, [activeChat]);
 
-  // ESCUCHAR REPORTES PARA PANEL DE ADMIN
+  // ESCUCHAR REPORTES PARA ADMIN
   useEffect(() => {
     if (!isAdmin) return;
     const q = query(collection(db, "reportes"));
@@ -545,30 +576,90 @@ export default function App() {
     return () => unsubscribe();
   }, [isAdmin]);
 
-  // FUNCIÓN PARA ACTIVAR MODO ADMIN CON PIN
-  const handleToggleAdminClick = () => {
-    if (isAdmin) {
-      setIsAdmin(false);
+  // ENVIAR CÓDIGO SMS REAL (FIREBASE PHONE AUTH)
+  const handleSendSms = async (e) => {
+    e.preventDefault();
+    if (phoneAuthNumber.length < 10) {
+      alert("Por favor ingresa un número válido a 10 dígitos.");
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'invisible',
+          'callback': () => {}
+        });
+      }
+
+      const formattedNumber = phoneAuthNumber.startsWith('+') ? phoneAuthNumber : `+52${phoneAuthNumber}`;
+      const confirmation = await signInWithPhoneNumber(auth, formattedNumber, window.recaptchaVerifier);
+      setConfirmationResult(confirmation);
+      setShowOtpModal(true);
+      setAuthLoading(false);
       playSound('click');
-    } else {
-      setEnteredPin('');
-      setPinError('');
-      setShowAdminPinModal(true);
+    } catch (error) {
+      console.error("Error al enviar SMS:", error);
+      alert(`Error de autenticación SMS: ${error.message}`);
+      setAuthLoading(false);
     }
   };
 
-  const handleVerifyAdminPin = (e) => {
+  // VERIFICAR CÓDIGO OTP
+  const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    if (enteredPin === ADMIN_PIN) {
-      setIsAdmin(true);
-      setShowAdminPinModal(false);
-      setEnteredPin('');
-      setPinError('');
+    if (!confirmationResult || !otpCode) return;
+
+    setAuthLoading(true);
+    try {
+      const result = await confirmationResult.confirm(otpCode);
+      setCurrentUser(result.user);
+      setCurrentUserId(result.user.uid);
+      setShowOtpModal(false);
+      setOtpCode('');
+      setAuthLoading(false);
       playSound('match');
-    } else {
-      setPinError('❌ Clave incorrecta. Acceso denegado.');
+      alert("¡Teléfono verificado exitosamente con Firebase!");
+    } catch (error) {
+      console.error("Error al verificar código:", error);
+      alert("Código incorrecto o expirado.");
+      setAuthLoading(false);
+    }
+  };
+
+  // LOGIN ADMIN AUTENTICADO POR FIREBASE CON VALIDACIÓN DE UID
+  const handleAdminLogin = async (e) => {
+    e.preventDefault();
+    setAdminAuthError('');
+    setAuthLoading(true);
+
+    try {
+      const res = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+      if (res.user.uid === ADMIN_UID) {
+        setIsAdmin(true);
+        setShowAdminLoginModal(false);
+        setAdminEmail('');
+        setAdminPassword('');
+        playSound('match');
+      } else {
+        setAdminAuthError("Acceso denegado: Esta cuenta no coincide con el UID autorizado.");
+        playSound('pass');
+      }
+      setAuthLoading(false);
+    } catch (error) {
+      console.error("Error admin auth:", error);
+      setAdminAuthError("Credenciales de Administrador inválidas.");
+      setAuthLoading(false);
       playSound('pass');
     }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setIsAdmin(false);
+    playSound('click');
+    alert("Sesión cerrada.");
   };
 
   // GUARDAR PERFIL EN FIRESTORE
@@ -593,22 +684,19 @@ export default function App() {
     }
   };
 
-  // SISTEMA DE "LIKE" SILENCIOSO CON MATCH MUTUO VERDADERO (DOBLE OPT-IN)
+  // SISTEMA DE LIKE Y MATCH VERDADERO
   const handleLike = async (item) => {
     playSound('like');
     
-    // Identificar el ID único del destinatario
     const targetUserId = userRole === 'seeker' ? (item.ownerId || item.id) : item.id;
 
     try {
-      // 1. Guardar nuestro "Like" en la base de datos
       await addDoc(collection(db, "likes"), {
         fromUserId: currentUserId,
         toUserId: targetUserId,
         createdAt: serverTimestamp()
       });
 
-      // 2. Verificar si la otra persona YA nos había dado "Like" previamente
       const reciprocalQuery = query(
         collection(db, "likes"),
         where("fromUserId", "==", targetUserId),
@@ -617,13 +705,11 @@ export default function App() {
 
       const reciprocalSnap = await getDocs(reciprocalQuery);
 
-      // ¡SI EXISTE EL LIKE RECÍPROCO ES UN MATCH VERDADERO!
       if (!reciprocalSnap.empty) {
         setLastMatch(item);
         setShowMatchModal(true);
         playSound('match');
 
-        // Registrar el match para ambos usuarios
         await addDoc(collection(db, "matches"), {
           userId: currentUserId,
           item: item,
@@ -642,7 +728,6 @@ export default function App() {
       console.error("Error al procesar Like/Match:", err);
     }
 
-    // Avanzar a la siguiente tarjeta sin falso show de match
     if (userRole === 'seeker') setJobIndex(jobIndex + 1);
     else setCandidateIndex(candidateIndex + 1);
   };
@@ -653,7 +738,7 @@ export default function App() {
     else setCandidateIndex(candidateIndex + 1);
   };
 
-  // ENVIAR MENSAJE DE CHAT
+  // ENVIAR MENSAJE
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessageText.trim() || !activeChat) return;
@@ -675,7 +760,7 @@ export default function App() {
     }
   };
 
-  // CAMBIAR ESTADO DE LA VACANTE (OCUPADA / ACTIVA)
+  // CAMBIAR ESTADO VACANTE
   const handleToggleJobStatus = async (jobId, currentStatus) => {
     playSound('click');
     const newStatus = currentStatus === 'filled' ? 'active' : 'filled';
@@ -756,7 +841,7 @@ export default function App() {
     }
   };
 
-  // ENVIAR REPORTE A LA BASE DE DATOS
+  // ENVIAR REPORTE
   const handleReportSubmit = async () => {
     if (!reportTarget) return;
 
@@ -836,6 +921,9 @@ export default function App() {
   return (
     <div className={`max-w-md mx-auto min-h-screen flex flex-col font-sans shadow-2xl relative overflow-hidden transition-colors duration-300 ${getThemeClasses()}`}>
       
+      {/* RECAPTCHA CONTENEDOR INVISIBLE */}
+      <div id="recaptcha-container"></div>
+
       {showMapPicker && (
         <MapPickerModal 
           initialCoords={selectedCoords}
@@ -1357,7 +1445,7 @@ export default function App() {
           </div>
         )}
 
-        {/* CONFIGURACIÓN Y PANEL DE ADMIN */}
+        {/* CONFIGURACIÓN Y AUTENTICACIÓN */}
         {currentPage === 'settings' && !activeChat && (
           <div className="p-4 space-y-5">
             <h2 className="font-black text-xl">Configuración y Seguridad ⚙️</h2>
@@ -1404,57 +1492,69 @@ export default function App() {
               </div>
             </div>
 
-            {/* B. VINCULAR TELÉFONO O CUENTA */}
+            {/* B. AUTENTICACIÓN POR TELÉFONO REAL (SMS FIREBASE) */}
             <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
               <div className="flex items-center space-x-2">
                 <Phone size={18} className="text-indigo-500" />
-                <h3 className="font-bold text-sm">Vincular Cuenta o Teléfono</h3>
+                <h3 className="font-bold text-sm">Verificación por SMS (Firebase)</h3>
               </div>
 
-              <p className="text-xs opacity-60">Guarda tu perfil de forma permanente en la nube para usarlo en otros dispositivos.</p>
+              <p className="text-xs opacity-60">Recibe un código SMS para proteger tu cuenta oficialmente.</p>
 
-              {isLoggedInPhone ? (
-                <div className="bg-emerald-50 text-emerald-700 p-3 rounded-2xl text-xs font-bold flex items-center justify-between">
-                  <span>Sincronizado con: {phoneAuthNumber}</span>
-                  <button onClick={() => setIsLoggedInPhone(false)} className="underline text-[10px]">Cerrar</button>
+              {currentUser ? (
+                <div className="bg-emerald-50 text-emerald-700 p-3 rounded-2xl text-xs font-bold flex items-center justify-between border border-emerald-200">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle size={16} />
+                    <span>Sesión Autenticada: {currentUser.phoneNumber || currentUser.email || 'Usuario Activo'}</span>
+                  </div>
+                  <button onClick={handleLogout} className="text-rose-600 underline text-[10px]">Cerrar</button>
                 </div>
               ) : (
-                <div className="flex gap-2">
-                  <input 
-                    type="tel" 
-                    placeholder="Número a 10 dígitos" 
-                    value={phoneAuthNumber}
-                    onChange={(e) => setPhoneAuthNumber(e.target.value)}
-                    className="flex-1 bg-slate-100 border p-2.5 rounded-xl text-xs outline-none text-slate-800"
-                  />
-                  <button 
-                    onClick={() => {
-                      if (phoneAuthNumber.length >= 10) {
-                        setIsLoggedInPhone(true);
-                        playSound('match');
-                      } else alert("Ingresa un número válido de 10 dígitos");
-                    }} 
-                    className="bg-indigo-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl"
-                  >
-                    Guardar
-                  </button>
-                </div>
+                <form onSubmit={handleSendSms} className="space-y-2">
+                  <div className="flex gap-2">
+                    <input 
+                      type="tel" 
+                      placeholder="Número a 10 dígitos (ej. 2711234567)" 
+                      value={phoneAuthNumber}
+                      onChange={(e) => setPhoneAuthNumber(e.target.value)}
+                      className="flex-1 bg-slate-100 border p-2.5 rounded-xl text-xs outline-none text-slate-800"
+                      required
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={authLoading}
+                      className="bg-indigo-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition"
+                    >
+                      {authLoading ? 'Enviando...' : 'Enviar SMS'}
+                    </button>
+                  </div>
+                </form>
               )}
             </div>
 
-            {/* C. MODO ADMINISTRADOR PROTEGIDO POR PIN */}
+            {/* C. MODO ADMINISTRADOR RECONOCIDO POR UID */}
             <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <ShieldCheck size={18} className="text-indigo-500" />
                   <h3 className="font-bold text-sm">Panel de Moderación</h3>
                 </div>
-                <button 
-                  onClick={handleToggleAdminClick}
-                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${isAdmin ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
-                >
-                  {isAdmin ? 'Admin Activo' : 'Activar Admin'}
-                </button>
+                {isAdmin ? (
+                  <button 
+                    onClick={() => setIsAdmin(false)}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-full border bg-rose-600 text-white flex items-center space-x-1"
+                  >
+                    <LogOut size={12} />
+                    <span>Salir Admin</span>
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => { setAdminAuthError(''); setShowAdminLoginModal(true); }}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-full border bg-slate-100 text-slate-600"
+                  >
+                    Iniciar Admin
+                  </button>
+                )}
               </div>
 
               {isAdmin ? (
@@ -1493,7 +1593,7 @@ export default function App() {
                   )}
                 </div>
               ) : (
-                <p className="text-xs opacity-60">Activa el modo administrador mediante tu PIN secreto para auditar denuncias.</p>
+                <p className="text-xs opacity-60">Inicia sesión con tu cuenta oficial para activar el panel de moderación.</p>
               )}
             </div>
 
@@ -1625,8 +1725,52 @@ export default function App() {
 
       </main>
 
-      {/* VENTANA MODAL PARA VALIDAR PIN DE ADMINISTRADOR */}
-      {showAdminPinModal && (
+      {/* MODAL CÓDIGO OTP (SMS) */}
+      {showOtpModal && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
+            <div className="flex items-center space-x-2 text-indigo-600 font-bold text-sm">
+              <Phone size={18} />
+              <span>Ingresa el código SMS</span>
+            </div>
+            <p className="text-xs text-slate-500">
+              Hemos enviado un código de 6 dígitos a <span className="font-bold">{phoneAuthNumber}</span>.
+            </p>
+            
+            <form onSubmit={handleVerifyOtp} className="space-y-3">
+              <input 
+                type="text" 
+                placeholder="000000"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+                className="w-full bg-slate-100 border p-3 rounded-2xl text-center font-bold tracking-widest text-lg outline-none focus:ring-2 focus:ring-indigo-600"
+                autoFocus
+                required
+              />
+
+              <div className="flex gap-2 pt-1">
+                <button 
+                  type="button" 
+                  onClick={() => setShowOtpModal(false)}
+                  className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={authLoading}
+                  className="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md hover:bg-indigo-700"
+                >
+                  {authLoading ? 'Verificando...' : 'Confirmar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL LOGIN ADMIN CON VALIDACIÓN DE UID */}
+      {showAdminLoginModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
             <div className="flex items-center space-x-2 text-indigo-600 font-bold text-sm">
@@ -1634,36 +1778,46 @@ export default function App() {
               <span>Acceso de Administrador</span>
             </div>
             <p className="text-xs text-slate-500">
-              Ingresa tu PIN secreto para activar las herramientas de moderación.
+              Ingresa tus credenciales registradas en la consola de Firebase.
             </p>
             
-            <form onSubmit={handleVerifyAdminPin} className="space-y-3">
+            <form onSubmit={handleAdminLogin} className="space-y-3">
               <input 
-                type="password" 
-                placeholder="PIN Secreto"
-                value={enteredPin}
-                onChange={(e) => setEnteredPin(e.target.value)}
-                className="w-full bg-slate-100 border p-3 rounded-2xl text-center font-bold tracking-widest text-sm outline-none focus:ring-2 focus:ring-indigo-600"
-                autoFocus
+                type="email" 
+                placeholder="Correo de Admin"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                className="w-full bg-slate-100 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-600"
+                required
               />
 
-              {pinError && (
-                <p className="text-xs text-rose-500 font-bold text-center">{pinError}</p>
+              <input 
+                type="password" 
+                placeholder="Contraseña"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="w-full bg-slate-100 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-600"
+                required
+              />
+
+              {adminAuthError && (
+                <p className="text-xs text-rose-500 font-bold text-center">{adminAuthError}</p>
               )}
 
               <div className="flex gap-2 pt-1">
                 <button 
                   type="button" 
-                  onClick={() => setShowAdminPinModal(false)}
+                  onClick={() => setShowAdminLoginModal(false)}
                   className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit"
+                  disabled={authLoading}
                   className="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md hover:bg-indigo-700"
                 >
-                  Entrar
+                  {authLoading ? 'Validando...' : 'Iniciar Admin'}
                 </button>
               </div>
             </form>
