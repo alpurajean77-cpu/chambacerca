@@ -1,3 +1,4 @@
+```jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   MapPin, DollarSign, Clock, Heart, X, 
@@ -38,8 +39,10 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// UID OFICIAL DEL ADMINISTRADOR ÚNICO
+// IDENTIFICADORES Y CREDENCIALES OFICIALES DE ADMINISTRADOR
 const ADMIN_UID = "xsLI4WHTmeNVvP5rUavILtbEVUl1";
+const ADMIN_EMAIL = "alpurajean77@gmail.com";
+const ADMIN_PASS = "Jean2020";
 
 // SINTETIZADOR DE SONIDOS NATIVO (Web Audio API)
 const playSound = (type) => {
@@ -376,7 +379,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState(null);
 
-  // MODERACIÓN / PANEL ADMIN CON Detección por UID
+  // MODERACIÓN / PANEL ADMIN CON VALIDACIÓN DE CORREO Y CONTRASEÑA ESPECÍFICA
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
@@ -406,17 +409,14 @@ export default function App() {
   const [newDesc, setNewDesc] = useState('');
   const [businessLogo, setBusinessLogo] = useState(null);
 
-  // ESCUCHAR ESTADO DE SESIÓN Y RECONOCER UID ADMIN
+  // ESCUCHAR ESTADO DE SESIÓN Y RECONOCER CUENTA ADMIN
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUser(user);
         setCurrentUserId(user.uid);
-        // Validar si el UID autenticado es tu UID oficial de Admin
-        if (user.uid === ADMIN_UID) {
+        if (user.uid === ADMIN_UID || (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
           setIsAdmin(true);
-        } else {
-          setIsAdmin(false);
         }
       } else {
         let localUid = localStorage.getItem('chamba_user_id');
@@ -426,7 +426,6 @@ export default function App() {
         }
         setCurrentUserId(localUid);
         setCurrentUser(null);
-        setIsAdmin(false);
       }
     });
     return () => unsubscribe();
@@ -628,28 +627,47 @@ export default function App() {
     }
   };
 
-  // LOGIN ADMIN AUTENTICADO POR FIREBASE CON VALIDACIÓN DE UID
+  // LOGIN ADMIN EXCLUSIVO CON VALIDACIÓN PARA alpurajean77@gmail.com Y Jean2020
   const handleAdminLogin = async (e) => {
     e.preventDefault();
     setAdminAuthError('');
     setAuthLoading(true);
 
+    const cleanEmail = adminEmail.trim().toLowerCase();
+
+    // Verificación directa de credencial maestra especificada
+    if (cleanEmail === ADMIN_EMAIL.toLowerCase() && adminPassword === ADMIN_PASS) {
+      try {
+        await signInWithEmailAndPassword(auth, cleanEmail, adminPassword);
+      } catch (err) {
+        console.log("Validación local activada.");
+      }
+      setIsAdmin(true);
+      setShowAdminLoginModal(false);
+      setAdminEmail('');
+      setAdminPassword('');
+      setAuthLoading(false);
+      playSound('match');
+      return;
+    }
+
+    // Intento secundario vía Firebase Auth con comprobación estricta de cuenta
     try {
-      const res = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-      if (res.user.uid === ADMIN_UID) {
+      const res = await signInWithEmailAndPassword(auth, cleanEmail, adminPassword);
+      if (res.user.uid === ADMIN_UID || (res.user.email && res.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
         setIsAdmin(true);
         setShowAdminLoginModal(false);
         setAdminEmail('');
         setAdminPassword('');
         playSound('match');
       } else {
-        setAdminAuthError("Acceso denegado: Esta cuenta no coincide con el UID autorizado.");
+        setAdminAuthError("Acceso denegado: Esta cuenta no coincide con el Administrador único.");
         playSound('pass');
       }
       setAuthLoading(false);
     } catch (error) {
       console.error("Error admin auth:", error);
-      setAdminAuthError("Credenciales de Administrador inválidas.");
+      setAdminAuthError("Credenciales de Administrador incorrectas.");
       setAuthLoading(false);
       playSound('pass');
     }
@@ -1532,7 +1550,7 @@ export default function App() {
               )}
             </div>
 
-            {/* C. MODO ADMINISTRADOR RECONOCIDO POR UID */}
+            {/* C. MODO ADMINISTRADOR RECONOCIDO POR CORREO Y CLAVE EXCLUSIVAS */}
             <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -1593,7 +1611,7 @@ export default function App() {
                   )}
                 </div>
               ) : (
-                <p className="text-xs opacity-60">Inicia sesión con tu cuenta oficial para activar el panel de moderación.</p>
+                <p className="text-xs opacity-60">Inicia sesión con tu correo autorizado de administrador para activar el panel de moderación.</p>
               )}
             </div>
 
@@ -1769,7 +1787,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL LOGIN ADMIN CON VALIDACIÓN DE UID */}
+      {/* MODAL LOGIN ADMIN CONFIGURADO PARA alpurajean77@gmail.com */}
       {showAdminLoginModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
@@ -1778,13 +1796,13 @@ export default function App() {
               <span>Acceso de Administrador</span>
             </div>
             <p className="text-xs text-slate-500">
-              Ingresa tus credenciales registradas en la consola de Firebase.
+              Ingresa tus credenciales autorizadas para activar el modo administrador.
             </p>
             
             <form onSubmit={handleAdminLogin} className="space-y-3">
               <input 
                 type="email" 
-                placeholder="Correo de Admin"
+                placeholder="alpurajean77@gmail.com"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
                 className="w-full bg-slate-100 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-600"
@@ -1859,7 +1877,7 @@ export default function App() {
             </div>
 
             <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda estrictamente prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
+              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda strictly prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
               <p><strong>2. Protección de Datos Personales:</strong> ChambaCerca no comparte tu número de teléfono ni tus coordenadas exactas sin tu consentimiento directo al hacer match.</p>
               <p><strong>3. Verificación de Negocios:</strong> Los negocios deben utilizar direcciones geolocalizadas reales para garantizar ofertas de trabajo seguras para los jóvenes.</p>
             </div>
@@ -1929,3 +1947,5 @@ export default function App() {
     </div>
   );
 }
+
+```
