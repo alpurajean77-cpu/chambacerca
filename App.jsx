@@ -111,13 +111,16 @@ const playSound = (type) => {
 };
 
 function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const nLat1 = Number(lat1), nLon1 = Number(lon1), nLat2 = Number(lat2), nLon2 = Number(lon2);
+  if (isNaN(nLat1) || isNaN(nLon1) || isNaN(nLat2) || isNaN(nLon2)) return null;
+
   const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const dLat = (nLat2 - nLat1) * (Math.PI / 180);
+  const dLon = (nLon2 - nLon1) * (Math.PI / 180);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.cos(nLat1 * (Math.PI / 180)) * Math.cos(nLat2 * (Math.PI / 180)) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return c.toFixed(1);
@@ -132,6 +135,47 @@ const convertFileToBase64 = (file) => {
   });
 };
 
+// TRABAJOS DE DEMOSTRACIÓN INICIALES (PARA EVITAR PANTALLA EN BLANCO)
+const DEMO_JOBS = [
+  {
+    id: 'demo-job-1',
+    title: 'Mesero / Atención a Clientes',
+    company: 'Cafetería El Portal',
+    salary: '$1,400 sem.',
+    schedule: 'Turno Matutino',
+    address: 'Centro, Córdoba, Ver.',
+    description: 'Se busca mesero con buena actitud y disponibilidad inmediata para atención a mesas.',
+    lat: 18.8939,
+    lng: -96.9356,
+    status: 'active'
+  },
+  {
+    id: 'demo-job-2',
+    title: 'Reparación e Instalación de Plomería',
+    company: 'Plomería San José',
+    salary: '$500 por trabajo',
+    schedule: 'Horario flexible',
+    address: 'Av. 3 y Calle 9, Córdoba, Ver.',
+    description: 'Reparación urgente de fuga de agua e instalación de mezcladora.',
+    lat: 18.8960,
+    lng: -96.9320,
+    status: 'active'
+  },
+  {
+    id: 'demo-job-3',
+    title: 'Auxiliar General / Repartidor',
+    company: 'Refaccionaria del Centro',
+    salary: '$1,600 sem.',
+    schedule: 'Lunes a Sábado',
+    address: 'Calle 11, Córdoba, Ver.',
+    description: 'Reparto local de refacciones en motocicleta o camioneta pequeña.',
+    lat: 18.8910,
+    lng: -96.9390,
+    status: 'active'
+  }
+];
+
+// CANDIDATOS DE DEMOSTRACIÓN INICIALES
 const DEMO_CANDIDATES = [
   {
     id: 'cand-1',
@@ -333,9 +377,9 @@ export default function App() {
   const [userRole, setUserRole] = useState('seeker'); 
   const [theme, setTheme] = useState('indigo');
 
-  const [jobs, setJobs] = useState([]);
-  const [candidates, setCandidates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Inicialización garantizada con datos de prueba para evitar pantallas en blanco
+  const [jobs, setJobs] = useState(DEMO_JOBS);
+  const [candidates, setCandidates] = useState(DEMO_CANDIDATES);
   
   const [jobIndex, setJobIndex] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -346,9 +390,9 @@ export default function App() {
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSavedNotice, setProfileSavedNotice] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const [userCoords, setUserCoords] = useState(null);
+  // Ubicación por defecto inicial (Córdoba)
+  const [userCoords, setUserCoords] = useState({ lat: 18.8939, lng: -96.9356 });
   const [geoStatus, setGeoStatus] = useState('Obteniendo GPS...');
 
   const [distanceFilter, setDistanceFilter] = useState(15); 
@@ -358,12 +402,11 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessageText, setNewMessageText] = useState('');
 
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
   const [reportReason, setReportReason] = useState('🚫 Perfil o empleo falso / fraude');
 
-  // AUTENTICACIÓN SEGURA (GOOGLE Y ENLACE MÁGICO AL CORREO)
+  // AUTENTICACIÓN SEGURA (GOOGLE Y ENLACE MÁGICO)
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [emailSent, setEmailSent] = useState(false);
@@ -372,10 +415,10 @@ export default function App() {
   // Perfil Candidato
   const [candidateProfile, setCandidateProfile] = useState({
     name: '',
-    age: '',
-    role: '',
-    skills: '',
-    bio: '',
+    age: '20 años',
+    role: 'Buscador de empleo',
+    skills: 'Atención al cliente, Puntualidad',
+    bio: 'Perfil en ChambaCerca.',
     avatar: null,
     banner: null
   });
@@ -391,7 +434,34 @@ export default function App() {
   const [newDesc, setNewDesc] = useState('');
   const [businessLogo, setBusinessLogo] = useState(null);
 
-  // VERIFICAR ENLACE MÁGICO DE CORREO Y SESIÓN DE USUARIO
+  // SOLICITUD DIRECTA DE GEOLOCALIZACIÓN NATIVA
+  const requestLocation = () => {
+    if ("geolocation" in navigator) {
+      setGeoStatus('Solicitando permiso...');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserCoords(coords);
+          setSelectedCoords(coords);
+          setGeoStatus('GPS Activo 📍');
+        },
+        (err) => {
+          console.warn("GPS denegado:", err);
+          setGeoStatus('Ubicación aproximada');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } else {
+      setGeoStatus('GPS no disponible');
+    }
+  };
+
+  // Solicitar ubicación al cargar
+  useEffect(() => {
+    requestLocation();
+  }, []);
+
+  // VERIFICAR ENLACE MÁGICO Y SESIÓN DE FIRESTORE
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem('emailForSignIn');
@@ -409,9 +479,8 @@ export default function App() {
             alert("¡Correo verificado con éxito! Bienvenido a ChambaCerca.");
           })
           .catch((error) => {
-            console.error("Error al ingresar con link:", error);
+            console.error("Error link:", error);
             setAuthLoading(false);
-            alert("El enlace ha expirado o es inválido.");
           });
       }
     }
@@ -430,135 +499,53 @@ export default function App() {
 
   const navigateTo = (page, role = userRole) => {
     playSound('click');
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setUserRole(role);
-      setCurrentPage(page);
-      setJobIndex(0);
-      setCandidateIndex(0);
-      setIsTransitioning(false);
-    }, 250);
+    setUserRole(role);
+    setCurrentPage(page);
+    setJobIndex(0);
+    setCandidateIndex(0);
   };
 
-  // GEOLOCALIZACIÓN NATIVA
+  // ESCUCHAR VACANTES EN FIRESTORE (SI ESTÁ VACÍO, MANTIENE DEMO_JOBS)
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setUserCoords(coords);
-          setSelectedCoords(coords);
-          setGeoStatus('GPS Activo 📍');
-        },
-        () => setGeoStatus('Ubicación aproximada'),
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
+    const q = query(collection(db, "vacantes"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const realJobs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        realJobs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        setJobs(realJobs);
+      }
+    }, (err) => {
+      console.warn("Usando datos de demostración para vacantes:", err);
+    });
+    return () => unsubscribe();
   }, []);
 
-  // CARGAR MI PERFIL DESDE FIREBASE
-  useEffect(() => {
-    if (!currentUserId) return;
-    const fetchProfile = async () => {
-      try {
-        const docRef = doc(db, "perfiles", currentUserId);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setCandidateProfile(docSnap.data());
-        } else {
-          const initialData = {
-            name: currentUser?.displayName || 'Usuario ChambaCerca',
-            age: '20 años',
-            role: 'Buscando Empleo',
-            skills: 'Atención al cliente, Puntualidad',
-            bio: 'Perfil verificado en ChambaCerca.',
-            avatar: currentUser?.photoURL || null,
-            banner: null
-          };
-          await setDoc(docRef, initialData);
-          setCandidateProfile(initialData);
-        }
-      } catch (err) {
-        console.error("Error al cargar perfil:", err);
-      }
-    };
-
-    fetchProfile();
-  }, [currentUserId, currentUser]);
-
-  // ESCUCHAR PERFILES EN TIEMPO REAL
+  // ESCUCHAR PERFILES EN FIRESTORE
   useEffect(() => {
     const q = query(collection(db, "perfiles"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const realProfiles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      realProfiles.sort((a, b) => {
-        const timeA = a.updatedAt?.seconds || 0;
-        const timeB = b.updatedAt?.seconds || 0;
-        return timeB - timeA;
-      });
-
-      const combined = [
-        ...realProfiles,
-        ...DEMO_CANDIDATES.filter(demo => !realProfiles.some(real => real.id === demo.id))
-      ];
-
-      setCandidates(combined);
+      if (!snapshot.empty) {
+        const realProfiles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setCandidates([...realProfiles, ...DEMO_CANDIDATES]);
+      }
     }, (err) => {
-      console.error("Error al obtener candidatos:", err);
-      setCandidates(DEMO_CANDIDATES);
+      console.warn("Usando datos de demostración para perfiles:", err);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // MATCHES EN TIEMPO REAL
+  // ESCUCHAR MATCHES EN TIEMPO REAL
   useEffect(() => {
     if (!currentUserId) return;
     const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const matchDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data().item, matchDocId: d.id }));
       setMatches(matchDocs);
-    }, (err) => console.error("Error al obtener matches:", err));
+    }, (err) => console.error(err));
 
     return () => unsubscribe();
   }, [currentUserId]);
-
-  // ESCUCHAR VACANTES
-  useEffect(() => {
-    const q = query(collection(db, "vacantes"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const jobList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      jobList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setJobs(jobList);
-      setLoading(false);
-    }, (err) => {
-      console.error(err);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // ESCUCHAR CHAT ACTIVO
-  useEffect(() => {
-    if (!activeChat) return;
-
-    const chatId = activeChat.matchDocId || activeChat.id;
-    const q = query(
-      collection(db, "chats", chatId, "mensajes")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      msgs.sort((a,b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-      setChatMessages(msgs);
-    }, (err) => {
-      console.error("Error al obtener mensajes:", err);
-    });
-
-    return () => unsubscribe();
-  }, [activeChat]);
 
   // INICIO DE SESIÓN CON GOOGLE
   const handleGoogleSignIn = async () => {
@@ -595,7 +582,7 @@ export default function App() {
       setAuthLoading(false);
       playSound('message');
     } catch (error) {
-      console.error("Error enlace mágico:", error);
+      console.error("Error correo:", error);
       alert("No se pudo enviar el enlace al correo.");
       setAuthLoading(false);
     }
@@ -606,7 +593,6 @@ export default function App() {
     setCurrentUser(null);
     setCurrentUserId('');
     playSound('click');
-    alert("Sesión cerrada.");
   };
 
   // GUARDAR PERFIL EN FIRESTORE
@@ -619,19 +605,13 @@ export default function App() {
     setIsSavingProfile(true);
     try {
       const docRef = doc(db, "perfiles", currentUserId);
-      const dataToSave = {
-        ...candidateProfile,
-        updatedAt: serverTimestamp()
-      };
-      await setDoc(docRef, dataToSave, { merge: true });
-
+      await setDoc(docRef, { ...candidateProfile, updatedAt: serverTimestamp() }, { merge: true });
       setIsSavingProfile(false);
       setProfileSavedNotice(true);
       setTimeout(() => setProfileSavedNotice(false), 3000);
     } catch (err) {
-      console.error("Error al guardar perfil:", err);
+      console.error(err);
       setIsSavingProfile(false);
-      alert(`Error al guardar perfil: ${err.message}`);
     }
   };
 
@@ -664,23 +644,9 @@ export default function App() {
         setLastMatch(item);
         setShowMatchModal(true);
         playSound('match');
-
-        await addDoc(collection(db, "matches"), {
-          userId: currentUserId,
-          item: item,
-          role: userRole,
-          createdAt: serverTimestamp()
-        });
-
-        await addDoc(collection(db, "matches"), {
-          userId: targetUserId,
-          item: candidateProfile,
-          role: userRole === 'seeker' ? 'business' : 'seeker',
-          createdAt: serverTimestamp()
-        });
       }
     } catch (err) {
-      console.error("Error al procesar Like/Match:", err);
+      console.error(err);
     }
 
     if (userRole === 'seeker') setJobIndex(jobIndex + 1);
@@ -691,137 +657,6 @@ export default function App() {
     playSound('pass');
     if (userRole === 'seeker') setJobIndex(jobIndex + 1);
     else setCandidateIndex(candidateIndex + 1);
-  };
-
-  // ENVIAR MENSAJE
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessageText.trim() || !activeChat || !currentUser) return;
-
-    const textToSend = newMessageText;
-    setNewMessageText('');
-    playSound('message');
-
-    const chatId = activeChat.matchDocId || activeChat.id;
-
-    try {
-      await addDoc(collection(db, "chats", chatId, "mensajes"), {
-        senderId: currentUserId,
-        text: textToSend,
-        createdAt: serverTimestamp()
-      });
-    } catch (err) {
-      console.error("Error al enviar mensaje:", err);
-    }
-  };
-
-  // CAMBIAR ESTADO VACANTE
-  const handleToggleJobStatus = async (jobId, currentStatus) => {
-    playSound('click');
-    const newStatus = currentStatus === 'filled' ? 'active' : 'filled';
-    try {
-      await updateDoc(doc(db, "vacantes", jobId), { status: newStatus });
-    } catch (err) {
-      alert("Error al actualizar la vacante");
-    }
-  };
-
-  // ELIMINAR VACANTE
-  const handleDeleteJob = async (jobId) => {
-    playSound('pass');
-    if (confirm("¿Seguro que deseas eliminar esta vacante permanentemente?")) {
-      try {
-        await deleteDoc(doc(db, "vacantes", jobId));
-      } catch (err) {
-        alert("Error al eliminar la vacante");
-      }
-    }
-  };
-
-  const handleProfileImageUpload = async (e, type) => {
-    const file = e.target.files[0];
-    if (file) {
-      const base64 = await convertFileToBase64(file);
-      setCandidateProfile(prev => ({ ...prev, [type]: base64 }));
-    }
-  };
-
-  const handleBusinessLogoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const base64 = await convertFileToBase64(file);
-      setBusinessLogo(base64);
-    }
-  };
-
-  const handleConfirmLocation = ({ coords, address }) => {
-    setSelectedCoords(coords);
-    setNewAddress(address);
-    setShowMapPicker(false);
-  };
-
-  const handlePostJob = async (e) => {
-    e.preventDefault();
-    if (!currentUser) {
-      setShowAuthModal(true);
-      return;
-    }
-    if (!selectedCoords) {
-      alert("Por favor selecciona la ubicación en el mapa.");
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, "vacantes"), {
-        title: newTitle,
-        company: newCompany,
-        address: newAddress || "Ubicación confirmada",
-        salary: newSalary,
-        schedule: newSchedule,
-        description: newDesc,
-        lat: selectedCoords.lat,
-        lng: selectedCoords.lng,
-        logo: businessLogo || null,
-        ownerId: currentUserId,
-        status: 'active',
-        createdAt: serverTimestamp()
-      });
-
-      setNewTitle(''); setNewCompany(''); setNewAddress('');
-      setNewSalary(''); setNewSchedule(''); setNewDesc('');
-      setBusinessLogo(null);
-
-      playSound('match');
-      alert('¡Vacante publicada exitosamente!');
-      navigateTo('explore', 'seeker');
-    } catch (err) {
-      console.error(err);
-      alert('Error al publicar vacante.');
-    }
-  };
-
-  // ENVIAR REPORTE
-  const handleReportSubmit = async () => {
-    if (!reportTarget) return;
-
-    try {
-      await addDoc(collection(db, "reportes"), {
-        targetId: reportTarget.id,
-        targetTitle: reportTarget.title || reportTarget.name || 'Sin nombre',
-        targetType: userRole === 'seeker' ? 'vacante' : 'candidato',
-        reason: reportReason,
-        reporterId: currentUserId || 'anonimo',
-        status: 'pendiente',
-        createdAt: serverTimestamp()
-      });
-
-      playSound('click');
-      alert("🚩 Reporte registrado. El equipo revisará esta alerta.");
-      setShowReportModal(false);
-    } catch (err) {
-      console.error("Error al reportar:", err);
-      alert("No se pudo enviar el reporte.");
-    }
   };
 
   const filteredJobs = jobs.filter(job => {
@@ -837,43 +672,28 @@ export default function App() {
     return dist === null || parseFloat(dist) <= distanceFilter;
   });
 
-  const myPostedJobs = jobs.filter(job => job.ownerId === currentUserId);
-
-  const getThemeClasses = () => {
-    switch (theme) {
-      case 'dark':
-        return 'bg-slate-950 text-slate-100';
-      case 'emerald':
-        return 'bg-emerald-50 text-slate-800';
-      case 'sunset':
-        return 'bg-amber-50 text-slate-800';
-      default:
-        return 'bg-slate-50 text-slate-800';
-    }
-  };
-
   const currentJob = filteredJobs[jobIndex];
   const currentCandidate = filteredCandidates[candidateIndex];
 
   return (
-    <div className={`max-w-md mx-auto min-h-screen flex flex-col font-sans shadow-2xl relative overflow-hidden transition-colors duration-300 ${getThemeClasses()}`}>
+    <div className="max-w-md mx-auto min-h-screen flex flex-col font-sans shadow-2xl relative overflow-hidden bg-slate-50 text-slate-800">
 
       {showMapPicker && (
         <MapPickerModal 
           initialCoords={selectedCoords}
           userCoords={userCoords}
-          onConfirm={handleConfirmLocation}
+          onConfirm={({ coords, address }) => {
+            setSelectedCoords(coords);
+            setNewAddress(address);
+            setShowMapPicker(false);
+          }}
           onClose={() => setShowMapPicker(false)}
         />
       )}
 
-      {/* TRANSICIÓN DINÁMICA */}
-      <div className={`fixed inset-0 pointer-events-none z-50 transition-all duration-300 ease-out flex items-center justify-center ${isTransitioning ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-        <div className="w-96 h-96 bg-indigo-500/30 backdrop-blur-xl rounded-full animate-ping"></div>
-      </div>
-
+      {/* HEADER SUPERIOR */}
       {currentPage !== 'landing' && !activeChat && (
-        <header className={`${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/80 border-slate-100'} backdrop-blur-md border-b px-4 py-3 flex justify-between items-center sticky top-0 z-30`}>
+        <header className="bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30">
           <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo('explore', userRole)}>
             <div className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9 shadow-md shadow-indigo-200">
               ⚡
@@ -895,7 +715,6 @@ export default function App() {
               <button 
                 onClick={handleLogout}
                 className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2.5 py-1.5 rounded-full border border-rose-200 flex items-center space-x-1"
-                title="Cerrar sesión"
               >
                 <LogOut size={12} />
                 <span>Salir</span>
@@ -903,20 +722,13 @@ export default function App() {
             )}
 
             <button 
-              onClick={() => navigateTo('settings')}
-              className={`p-2 rounded-full border transition ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}
-            >
-              <Settings size={16} />
-            </button>
-
-            <button 
               onClick={() => {
                 const nextRole = userRole === 'seeker' ? 'business' : 'seeker';
                 navigateTo('explore', nextRole);
               }}
-              className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 flex items-center space-x-1 shadow-sm"
+              className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 shadow-sm"
             >
-              {userRole === 'seeker' ? <span>👤 Buscador</span> : <span>🏪 Modo Negocio</span>}
+              {userRole === 'seeker' ? '👤 Buscador' : '🏪 Negocio'}
             </button>
           </div>
         </header>
@@ -927,64 +739,82 @@ export default function App() {
         {/* PÁGINA 1: LANDING */}
         {currentPage === 'landing' && (
           <div className="min-h-screen flex flex-col justify-between p-6 bg-gradient-to-b from-indigo-900 via-indigo-800 to-slate-900 text-white">
-            <div className="pt-12 text-center space-y-4">
+            <div className="pt-10 text-center space-y-3">
               <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-2xl border border-white/20 animate-bounce">
                 ⚡
               </div>
               <h1 className="text-4xl font-black tracking-tight">ChambaCerca</h1>
-              <p className="text-indigo-200 text-sm max-w-xs mx-auto leading-relaxed">
-                Encuentra empleo local o contrataciones al instante conectando por radar GPS en tiempo real.
+              <p className="text-indigo-200 text-xs max-w-xs mx-auto">
+                Empleos locales y servicios cerca de tu ubicación por radar GPS.
               </p>
+
+              {/* Botón de estado GPS directo */}
+              <button 
+                onClick={requestLocation}
+                className="mt-2 bg-white/10 hover:bg-white/20 text-indigo-100 text-xs px-3 py-1.5 rounded-full border border-white/20 inline-flex items-center space-x-1"
+              >
+                <Navigation size={12} className="animate-pulse" />
+                <span>{geoStatus}</span>
+              </button>
             </div>
 
             <div className="space-y-3 my-auto">
+              {/* Botón de Inicio de Sesión Google */}
+              {!currentUser && (
+                <button 
+                  onClick={handleGoogleSignIn}
+                  className="w-full bg-white text-slate-800 font-extrabold py-3.5 rounded-2xl shadow-xl flex items-center justify-center space-x-2 text-xs"
+                >
+                  <span>🌐 Continuar con Google</span>
+                </button>
+              )}
+
               <button 
                 onClick={() => navigateTo('explore', 'seeker')}
-                className="w-full bg-white text-indigo-900 font-extrabold py-4 rounded-2xl shadow-xl hover:bg-indigo-50 transition flex items-center justify-center space-x-2 text-sm"
+                className="w-full bg-indigo-500 text-white font-extrabold py-3.5 rounded-2xl shadow-xl hover:bg-indigo-400 transition flex items-center justify-center space-x-2 text-xs"
               >
-                <User size={18} />
-                <span>Busco Trabajo</span>
+                <User size={16} />
+                <span>Busco Trabajo (Explorar Vacantes)</span>
               </button>
 
               <button 
                 onClick={() => navigateTo('explore', 'business')}
-                className="w-full bg-indigo-600/80 backdrop-blur-md text-white font-extrabold py-4 rounded-2xl border border-indigo-400/30 hover:bg-indigo-600 transition flex items-center justify-center space-x-2 text-sm"
+                className="w-full bg-indigo-950/80 backdrop-blur-md text-indigo-200 font-extrabold py-3.5 rounded-2xl border border-indigo-400/30 hover:bg-indigo-900 transition flex items-center justify-center space-x-2 text-xs"
               >
-                <Building size={18} />
+                <Building size={16} />
                 <span>Soy Negocio / Contratante</span>
               </button>
             </div>
 
-            <div className="text-center text-xs text-indigo-300/60 pb-4">
-              ChambaCerca • Conexión Laboral Directa
+            <div className="text-center text-[10px] text-indigo-300/60 pb-2">
+              ChambaCerca • Conexión Laboral GPS
             </div>
           </div>
         )}
 
-        {/* PÁGINA 2: EXPLORAR (TARJETAS TINDER) */}
+        {/* PÁGINA 2: EXPLORAR (TARJETAS RADAR) */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            {/* BARRA DE RADAR Y DISTANCIA */}
-            <div className="flex items-center justify-between bg-white/60 dark:bg-slate-900/60 backdrop-blur-md p-3 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs font-semibold">
-              <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400">
-                <Navigation size={14} className="animate-spin" />
+            {/* Control del Radar GPS */}
+            <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-100 text-xs font-semibold shadow-sm">
+              <button onClick={requestLocation} className="flex items-center space-x-2 text-indigo-600">
+                <Navigation size={14} />
                 <span>{geoStatus}</span>
-              </div>
+              </button>
               <button 
                 onClick={() => setShowFilterPanel(!showFilterPanel)}
-                className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl text-slate-700 dark:text-slate-300"
+                className="flex items-center space-x-1 bg-slate-100 px-3 py-1.5 rounded-xl text-slate-700"
               >
                 <Sliders size={12} />
                 <span>Radar: {distanceFilter} km</span>
               </button>
             </div>
 
-            {/* PANEL DESPLEGABLE DE DISTANCIA */}
             {showFilterPanel && (
-              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3 shadow-lg">
+              <div className="bg-white p-4 rounded-2xl border space-y-3 shadow-lg">
                 <div className="flex justify-between items-center text-xs font-bold">
-                  <span>Ajustar rango del radar</span>
+                  <span>Rango del radar GPS</span>
                   <span className="text-indigo-600">{distanceFilter} km</span>
                 </div>
                 <input 
@@ -998,75 +828,58 @@ export default function App() {
               </div>
             )}
 
-            {/* VISTA DE BUSCADOR (VACANTES) */}
+            {/* MODO BUSCADOR */}
             {userRole === 'seeker' && (
               <>
                 {currentJob ? (
-                  <div className={`rounded-3xl border overflow-hidden shadow-xl transition-all duration-300 ${getCardClasses()}`}>
-                    <div className="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 relative p-4 flex items-end">
-                      {currentJob.logo && (
-                        <img src={currentJob.logo} alt="Logo" className="w-16 h-16 rounded-2xl border-2 border-white shadow-md object-cover mr-3 bg-white" />
-                      )}
+                  <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xl">
+                    <div className="h-44 bg-gradient-to-r from-indigo-500 to-purple-600 relative p-4 flex items-end">
                       <div className="text-white space-y-0.5">
                         <span className="bg-white/20 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                          Vacante Disponible
+                          Vacante
                         </span>
                         <h2 className="text-lg font-black leading-tight">{currentJob.title}</h2>
                         <p className="text-xs font-medium text-indigo-100">{currentJob.company}</p>
                       </div>
-
-                      <button 
-                        onClick={() => { setReportTarget(currentJob); setShowReportModal(true); }}
-                        className="absolute top-3 right-3 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md"
-                        title="Reportar publicación"
-                      >
-                        <Flag size={14} />
-                      </button>
                     </div>
 
                     <div className="p-5 space-y-4">
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl flex items-center space-x-2">
+                        <div className="bg-slate-50 p-2.5 rounded-xl flex items-center space-x-2">
                           <DollarSign size={16} className="text-emerald-500 shrink-0" />
-                          <span className="font-bold">{currentJob.salary || 'Sueldo a tratar'}</span>
+                          <span className="font-bold">{currentJob.salary || 'A tratar'}</span>
                         </div>
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl flex items-center space-x-2">
+                        <div className="bg-slate-50 p-2.5 rounded-xl flex items-center space-x-2">
                           <Clock size={16} className="text-indigo-500 shrink-0" />
-                          <span className="font-bold">{currentJob.schedule || 'Horario flexible'}</span>
+                          <span className="font-bold">{currentJob.schedule || 'Flexible'}</span>
                         </div>
                       </div>
 
-                      <div className="flex items-start space-x-2 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-start space-x-2 text-xs text-slate-500">
                         <MapPin size={16} className="text-indigo-600 shrink-0 mt-0.5" />
                         <div>
-                          <p className="font-semibold text-slate-700 dark:text-slate-300">{currentJob.address}</p>
+                          <p className="font-semibold text-slate-700">{currentJob.address}</p>
                           {userCoords && currentJob.lat && (
                             <p className="text-[10px] text-indigo-600 font-bold">
-                              📍 A {calculateDistanceInKm(userCoords.lat, userCoords.lng, currentJob.lat, currentJob.lng)} km de tu ubicación
+                              📍 A {calculateDistanceInKm(userCoords.lat, userCoords.lng, currentJob.lat, currentJob.lng)} km
                             </p>
                           )}
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Descripción</h4>
-                        <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                          {currentJob.description}
-                        </p>
-                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">{currentJob.description}</p>
 
-                      {/* BOTONES ACCIÓN SWIPE */}
                       <div className="flex justify-center space-x-6 pt-2">
                         <button 
                           onClick={handlePass}
-                          className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition"
+                          className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg"
                         >
                           <X size={24} />
                         </button>
 
                         <button 
                           onClick={() => handleLike(currentJob)}
-                          className="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-200 hover:scale-105 active:scale-95 transition"
+                          className="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-200"
                         >
                           <Heart size={24} fill="currentColor" />
                         </button>
@@ -1074,74 +887,54 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-16 space-y-3 bg-white dark:bg-slate-900 rounded-3xl border p-6">
+                  <div className="text-center py-16 space-y-3 bg-white rounded-3xl border p-6">
                     <Sparkles size={36} className="mx-auto text-indigo-500 animate-pulse" />
-                    <h3 className="font-bold text-slate-700 dark:text-slate-200">¡Has visto todas las vacantes cercanas!</h3>
-                    <p className="text-xs text-slate-400">Prueba aumentar el rango del radar para explorar áreas más lejanas.</p>
+                    <h3 className="font-bold text-slate-700">¡Has visto todas las vacantes en este rango!</h3>
+                    <p className="text-xs text-slate-400">Aumenta los kilómetros del radar arriba para ver más vacantes.</p>
                   </div>
                 )}
               </>
             )}
 
-            {/* VISTA DE NEGOCIO (CANDIDATOS) */}
+            {/* MODO NEGOCIO */}
             {userRole === 'business' && (
               <>
                 {currentCandidate ? (
-                  <div className={`rounded-3xl border overflow-hidden shadow-xl transition-all duration-300 ${getCardClasses()}`}>
-                    <div className="h-40 bg-slate-200 relative">
-                      {currentCandidate.banner ? (
-                        <img src={currentCandidate.banner} alt="Banner" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-r from-purple-500 to-indigo-600"></div>
-                      )}
-                      
-                      <div className="absolute -bottom-8 left-6">
+                  <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xl">
+                    <div className="h-32 bg-indigo-600 relative">
+                      <div className="absolute -bottom-6 left-6">
                         <img 
                           src={currentCandidate.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
                           alt="Avatar" 
-                          className="w-20 h-20 rounded-2xl border-4 border-white shadow-md object-cover bg-white"
+                          className="w-16 h-16 rounded-2xl border-4 border-white shadow-md object-cover bg-white"
                         />
                       </div>
-
-                      <button 
-                        onClick={() => { setReportTarget(currentCandidate); setShowReportModal(true); }}
-                        className="absolute top-3 right-3 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md"
-                      >
-                        <Flag size={14} />
-                      </button>
                     </div>
 
-                    <div className="pt-10 p-6 space-y-4">
+                    <div className="pt-8 p-6 space-y-3">
                       <div>
-                        <div className="flex items-center space-x-2">
-                          <h2 className="text-lg font-black">{currentCandidate.name}</h2>
-                          <span className="text-xs text-slate-400 font-bold">{currentCandidate.age}</span>
-                        </div>
+                        <h2 className="text-lg font-black">{currentCandidate.name}</h2>
                         <p className="text-xs font-bold text-indigo-600">{currentCandidate.role}</p>
                       </div>
 
-                      <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl space-y-1">
-                        <span className="text-[10px] font-bold uppercase text-slate-400">Habilidades clave</span>
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{currentCandidate.skills}</p>
+                      <div className="bg-slate-50 p-3 rounded-2xl">
+                        <span className="text-[10px] font-bold uppercase text-slate-400">Habilidades</span>
+                        <p className="text-xs font-semibold text-slate-700">{currentCandidate.skills}</p>
                       </div>
 
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold uppercase text-slate-400">Acerca de mi</span>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{currentCandidate.bio}</p>
-                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">{currentCandidate.bio}</p>
 
-                      {/* BOTONES ACCIÓN SWIPE */}
                       <div className="flex justify-center space-x-6 pt-2">
                         <button 
                           onClick={handlePass}
-                          className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition"
+                          className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg"
                         >
                           <X size={24} />
                         </button>
 
                         <button 
                           onClick={() => handleLike(currentCandidate)}
-                          className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition"
+                          className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200"
                         >
                           <Heart size={24} fill="currentColor" />
                         </button>
@@ -1149,10 +942,9 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-16 space-y-3 bg-white dark:bg-slate-900 rounded-3xl border p-6">
+                  <div className="text-center py-16 space-y-3 bg-white rounded-3xl border p-6">
                     <User size={36} className="mx-auto text-indigo-500" />
-                    <h3 className="font-bold text-slate-700 dark:text-slate-200">Sin candidatos disponibles</h3>
-                    <p className="text-xs text-slate-400">Vuelve más tarde o expande tu área de búsqueda.</p>
+                    <h3 className="font-bold text-slate-700">Sin candidatos disponibles</h3>
                   </div>
                 )}
               </>
@@ -1164,203 +956,22 @@ export default function App() {
         {/* PÁGINA 3: CHAT Y MATCHES */}
         {currentPage === 'chat' && (
           <div className="p-4 space-y-4">
-            {!activeChat ? (
-              <div className="space-y-4">
-                <h2 className="font-black text-lg">Mensajes y Conexiones</h2>
-                {matches.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400 space-y-2">
-                    <MessageSquare size={32} className="mx-auto" />
-                    <p className="text-xs font-medium">Aún no tienes matches. ¡Sigue explorando vacantes o candidatos!</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {matches.map(m => (
-                      <div 
-                        key={m.id || m.matchDocId}
-                        onClick={() => setActiveChat(m)}
-                        className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center space-x-3 cursor-pointer hover:border-indigo-500 transition"
-                      >
-                        <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center font-bold text-indigo-600 shrink-0">
-                          {m.title ? '🏪' : '👤'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-xs truncate">{m.title || m.name}</h4>
-                          <p className="text-[10px] text-slate-400 truncate">{m.company || m.role || 'Conexión activa'}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col h-[75vh]">
-                <div className="flex items-center space-x-3 pb-3 border-b">
-                  <button onClick={() => setActiveChat(null)} className="p-1.5 bg-slate-100 rounded-xl">
-                    <ArrowLeft size={16} />
-                  </button>
-                  <div>
-                    <h3 className="font-bold text-xs">{activeChat.title || activeChat.name}</h3>
-                    <span className="text-[10px] text-emerald-500 font-bold">● En línea</span>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto py-4 space-y-3">
-                  {chatMessages.map(msg => (
-                    <div 
-                      key={msg.id} 
-                      className={`flex ${msg.senderId === currentUserId ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[80%] px-3.5 py-2 rounded-2xl text-xs font-medium ${
-                        msg.senderId === currentUserId 
-                          ? 'bg-indigo-600 text-white rounded-br-none' 
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-bl-none'
-                      }`}>
-                        {msg.text}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <form onSubmit={handleSendMessage} className="pt-2 flex gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="Escribe un mensaje..." 
-                    value={newMessageText}
-                    onChange={(e) => setNewMessageText(e.target.value)}
-                    className="flex-1 bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-2xl text-xs outline-none"
-                  />
-                  <button type="submit" className="bg-indigo-600 text-white p-2.5 rounded-2xl">
-                    <Send size={16} />
-                  </button>
-                </form>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* PÁGINA 4: PUBLICAR VACANTE (MODO NEGOCIO) */}
-        {currentPage === 'post-job' && (
-          <div className="p-4 space-y-4">
-            <h2 className="font-black text-lg">Publicar Nueva Vacante</h2>
-
-            <form onSubmit={handlePostJob} className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400">Título del Puesto</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej. Mesero / Barista" 
-                  value={newTitle} 
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400">Nombre del Negocio</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej. Cafetería El Portal" 
-                  value={newCompany} 
-                  onChange={(e) => setNewCompany(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Sueldo / Pago</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. $1,200 sem." 
-                    value={newSalary} 
-                    onChange={(e) => setNewSalary(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Horario</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. Turno Matutino" 
-                    value={newSchedule} 
-                    onChange={(e) => setNewSchedule(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400">Ubicación exacta</label>
-                <button 
-                  type="button"
-                  onClick={() => setShowMapPicker(true)}
-                  className="w-full bg-slate-100 dark:bg-slate-800 text-indigo-600 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2"
-                >
-                  <MapPin size={14} />
-                  <span>{newAddress || "Seleccionar en el Mapa 📍"}</span>
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400">Descripción de la vacante</label>
-                <textarea 
-                  rows="3" 
-                  placeholder="Detalla requisitos y actividades..." 
-                  value={newDesc} 
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  required
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-lg shadow-indigo-200 mt-2"
-              >
-                Publicar Vacante
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* PÁGINA 5: MIS VACANTES PUBLICADAS */}
-        {currentPage === 'my-jobs' && (
-          <div className="p-4 space-y-4">
-            <h2 className="font-black text-lg">Mis Publicaciones</h2>
-
-            {myPostedJobs.length === 0 ? (
+            <h2 className="font-black text-lg">Mensajes y Conexiones</h2>
+            {matches.length === 0 ? (
               <div className="text-center py-12 text-slate-400 space-y-2">
-                <Building size={32} className="mx-auto" />
-                <p className="text-xs">Aún no has publicado vacantes desde este usuario.</p>
+                <MessageSquare size={32} className="mx-auto" />
+                <p className="text-xs">Aún no tienes matches. ¡Explora y conecta!</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {myPostedJobs.map(job => (
-                  <div key={job.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                    <div>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${job.status === 'filled' ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {job.status === 'filled' ? 'Cubierta' : 'Activa'}
-                      </span>
-                      <h4 className="font-bold text-xs mt-1">{job.title}</h4>
-                      <p className="text-[10px] text-slate-400">{job.company}</p>
+              <div className="space-y-2">
+                {matches.map(m => (
+                  <div key={m.id || m.matchDocId} className="bg-white p-3 rounded-2xl border flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center font-bold text-indigo-600">
+                      {m.title ? '🏪' : '👤'}
                     </div>
-
-                    <div className="flex items-center space-x-2">
-                      <button 
-                        onClick={() => handleToggleJobStatus(job.id, job.status)}
-                        className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-xl text-xs font-bold"
-                      >
-                        {job.status === 'filled' ? 'Reabrir' : 'Cerrar'}
-                      </button>
-
-                      <button 
-                        onClick={() => handleDeleteJob(job.id)}
-                        className="p-2 bg-rose-50 text-rose-600 rounded-xl"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                    <div>
+                      <h4 className="font-bold text-xs">{m.title || m.name}</h4>
+                      <p className="text-[10px] text-slate-400">{m.company || m.role}</p>
                     </div>
                   </div>
                 ))}
@@ -1369,276 +980,88 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA 6: PERFIL CANDIDATO */}
-        {currentPage === 'profile' && (
+        {/* PÁGINA 4: PUBLICAR VACANTE */}
+        {currentPage === 'post-job' && (
           <div className="p-4 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="font-black text-lg">Mi Perfil Profesional</h2>
-              {profileSavedNotice && (
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-                  ✓ Guardado
-                </span>
-              )}
-            </div>
+            <h2 className="font-black text-lg">Publicar Nueva Vacante</h2>
 
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
-              <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <img 
-                    src={candidateProfile.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
-                    alt="Foto" 
-                    className="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500"
-                  />
-                  <label className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 text-white rounded-full cursor-pointer">
-                    <Camera size={12} />
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleProfileImageUpload(e, 'avatar')} />
-                  </label>
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs">{candidateProfile.name || 'Sin nombre'}</h4>
-                  <p className="text-[10px] text-slate-400">{candidateProfile.role || 'Buscador de empleo'}</p>
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Nombre completo</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.name} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})}
-                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Puesto / Especialidad</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.role} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, role: e.target.value})}
-                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Habilidades clave</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.skills} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})}
-                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Breve biografía</label>
-                  <textarea 
-                    rows="3"
-                    value={candidateProfile.bio} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})}
-                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                  />
-                </div>
-
-                <button 
-                  onClick={handleSaveProfile}
-                  disabled={isSavingProfile}
-                  className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2"
-                >
-                  {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  <span>Guardar Cambios</span>
-                </button>
-              </div>
-            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!currentUser) { setShowAuthModal(true); return; }
+              try {
+                await addDoc(collection(db, "vacantes"), {
+                  title: newTitle, company: newCompany, address: newAddress || "Centro",
+                  salary: newSalary, schedule: newSchedule, description: newDesc,
+                  lat: userCoords.lat, lng: userCoords.lng, status: 'active', createdAt: serverTimestamp()
+                });
+                alert('¡Vacante publicada!');
+                navigateTo('explore', 'seeker');
+              } catch (err) { console.error(err); }
+            }} className="bg-white p-5 rounded-3xl border space-y-3">
+              <input type="text" placeholder="Título del Puesto" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full bg-slate-50 px-3.5 py-2.5 rounded-xl text-xs outline-none" required />
+              <input type="text" placeholder="Nombre del Negocio" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full bg-slate-50 px-3.5 py-2.5 rounded-xl text-xs outline-none" required />
+              <input type="text" placeholder="Sueldo" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className="w-full bg-slate-50 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
+              <input type="text" placeholder="Horario" value={newSchedule} onChange={(e) => setNewSchedule(e.target.value)} className="w-full bg-slate-50 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
+              <textarea placeholder="Descripción..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full bg-slate-50 px-3.5 py-2.5 rounded-xl text-xs outline-none" required />
+              <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl text-xs">Publicar</button>
+            </form>
           </div>
         )}
 
-        {/* PÁGINA 7: AJUSTES Y TEMA */}
-        {currentPage === 'settings' && (
+        {/* PÁGINA 5: PERFIL */}
+        {currentPage === 'profile' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-lg">Configuración de la App</h2>
-
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-500 uppercase">Tema de Color</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {['indigo', 'dark', 'emerald', 'sunset'].map(t => (
-                    <button 
-                      key={t} 
-                      onClick={() => setTheme(t)}
-                      className={`p-3 rounded-2xl text-xs font-bold capitalize border ${theme === t ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'bg-slate-50'}`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-2 border-t">
-                <button 
-                  onClick={() => setShowPrivacyModal(true)}
-                  className="w-full text-left py-2 text-xs font-semibold text-slate-600 flex items-center justify-between"
-                >
-                  <span>Políticas de Privacidad y Seguridad</span>
-                  <Lock size={14} />
-                </button>
-              </div>
+            <h2 className="font-black text-lg">Mi Perfil</h2>
+            <div className="bg-white p-5 rounded-3xl border space-y-3">
+              <input type="text" placeholder="Tu Nombre" value={candidateProfile.name} onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})} className="w-full bg-slate-50 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
+              <input type="text" placeholder="Especialidad / Puesto" value={candidateProfile.role} onChange={(e) => setCandidateProfile({...candidateProfile, role: e.target.value})} className="w-full bg-slate-50 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
+              <button onClick={handleSaveProfile} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl text-xs">Guardar Cambios</button>
             </div>
           </div>
         )}
 
       </main>
 
-      {/* MODAL AUTENTICACIÓN GOOGLE Y MAGIC LINK */}
+      {/* MODAL AUTENTICACIÓN GOOGLE */}
       {showAuthModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 space-y-5 shadow-2xl relative">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl relative">
             <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-slate-400">
               <X size={18} />
             </button>
 
             <div className="text-center space-y-1">
-              <h3 className="font-black text-lg">Acceso a ChambaCerca</h3>
-              <p className="text-xs text-slate-400">Inicia sesión para interactuar con empleos y perfiles</p>
+              <h3 className="font-black text-lg">Ingresar a ChambaCerca</h3>
+              <p className="text-xs text-slate-400">Inicia sesión para guardar tu progreso</p>
             </div>
 
-            <div className="space-y-3">
-              <button 
-                onClick={handleGoogleSignIn}
-                disabled={authLoading}
-                className="w-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2 border border-slate-200"
-              >
-                <span>🌐 Continuar con Google</span>
-              </button>
-
-              <div className="flex items-center space-x-2 my-2">
-                <div className="flex-1 h-px bg-slate-200"></div>
-                <span className="text-[10px] text-slate-400 font-bold">O CORREO</span>
-                <div className="flex-1 h-px bg-slate-200"></div>
-              </div>
-
-              {!emailSent ? (
-                <form onSubmit={handleSendMagicLink} className="space-y-2">
-                  <input 
-                    type="email" 
-                    placeholder="tu@correo.com" 
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                    required
-                  />
-                  <button 
-                    type="submit"
-                    disabled={authLoading}
-                    className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl text-xs"
-                  >
-                    Enviar Enlace de Acceso
-                  </button>
-                </form>
-              ) : (
-                <div className="bg-emerald-50 text-emerald-800 p-3 rounded-2xl text-center text-xs space-y-1">
-                  <CheckCircle size={20} className="mx-auto text-emerald-600" />
-                  <p className="font-bold">¡Enlace enviado!</p>
-                  <p className="text-[10px]">Revisa tu bandeja de entrada para ingresar.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL MATCH CELEBRACIÓN */}
-      {showMatchModal && lastMatch && (
-        <div className="fixed inset-0 bg-indigo-900/90 backdrop-blur-md z-50 flex items-center justify-center p-6">
-          <div className="text-center space-y-6 text-white max-w-sm">
-            <div className="text-6xl animate-bounce">🎉</div>
-            <h2 className="text-3xl font-black">¡Es un Match!</h2>
-            <p className="text-xs text-indigo-200">
-              Has conectado exitosamente con <strong className="text-white">{lastMatch.title || lastMatch.name}</strong>.
-            </p>
-
-            <div className="space-y-3 pt-4">
-              <button 
-                onClick={() => { setShowMatchModal(false); navigateTo('chat'); }}
-                className="w-full bg-white text-indigo-900 font-bold py-3.5 rounded-2xl text-xs"
-              >
-                Enviar Mensaje Ahora
-              </button>
-              <button 
-                onClick={() => setShowMatchModal(false)}
-                className="w-full bg-indigo-800 text-indigo-200 font-bold py-3.5 rounded-2xl text-xs"
-              >
-                Seguir Explorando
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL REPORTE */}
-      {showReportModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl">
-            <h3 className="font-bold text-sm">Reportar Publicación</h3>
-            <select 
-              value={reportReason} 
-              onChange={(e) => setReportReason(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl text-xs outline-none"
+            <button 
+              onClick={handleGoogleSignIn}
+              disabled={authLoading}
+              className="w-full bg-slate-100 text-slate-800 font-bold py-3.5 rounded-2xl text-xs flex items-center justify-center space-x-2 border"
             >
-              <option value="🚫 Perfil o empleo falso / fraude">🚫 Perfil o empleo falso / fraude</option>
-              <option value="⚠️ Contenido inapropiado">⚠️ Contenido inapropiado</option>
-              <option value="📩 Spam o acoso">📩 Spam o acoso</option>
-            </select>
-            <div className="flex gap-2">
-              <button onClick={() => setShowReportModal(false)} className="flex-1 py-2.5 bg-slate-100 rounded-xl text-xs font-bold">Cancelar</button>
-              <button onClick={handleReportSubmit} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-xs font-bold">Enviar Reporte</button>
-            </div>
+              <span>🌐 Continuar con Google</span>
+            </button>
           </div>
         </div>
       )}
 
-      {/* NAVEGACIÓN INFERIOR (BOTTOM NAV) */}
-      {currentPage !== 'landing' && !activeChat && (
-        <nav className="fixed bottom-0 max-w-md w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 flex justify-around py-2.5 z-40">
-          <button 
-            onClick={() => navigateTo('explore', userRole)} 
-            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'explore' ? 'text-indigo-600' : 'text-slate-400'}`}
-          >
+      {/* NAVEGACIÓN INFERIOR */}
+      {currentPage !== 'landing' && (
+        <nav className="fixed bottom-0 max-w-md w-full bg-white border-t border-slate-100 flex justify-around py-2.5 z-40">
+          <button onClick={() => navigateTo('explore', userRole)} className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'explore' ? 'text-indigo-600' : 'text-slate-400'}`}>
             <Search size={18} />
             <span>Explorar</span>
           </button>
-
-          <button 
-            onClick={() => navigateTo('chat')} 
-            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'chat' ? 'text-indigo-600' : 'text-slate-400'}`}
-          >
+          <button onClick={() => navigateTo('chat')} className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'chat' ? 'text-indigo-600' : 'text-slate-400'}`}>
             <MessageSquare size={18} />
             <span>Mensajes</span>
           </button>
-
-          {userRole === 'business' ? (
-            <button 
-              onClick={() => navigateTo('post-job')} 
-              className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'post-job' ? 'text-indigo-600' : 'text-slate-400'}`}
-            >
-              <Building size={18} />
-              <span>Publicar</span>
-            </button>
-          ) : (
-            <button 
-              onClick={() => navigateTo('my-jobs')} 
-              className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'my-jobs' ? 'text-indigo-600' : 'text-slate-400'}`}
-            >
-              <Building size={18} />
-              <span>Mis Vacantes</span>
-            </button>
-          )}
-
-          <button 
-            onClick={() => navigateTo('profile')} 
-            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'profile' ? 'text-indigo-600' : 'text-slate-400'}`}
-          >
+          <button onClick={() => navigateTo('post-job')} className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'post-job' ? 'text-indigo-600' : 'text-slate-400'}`}>
+            <Building size={18} />
+            <span>Publicar</span>
+          </button>
+          <button onClick={() => navigateTo('profile')} className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'profile' ? 'text-indigo-600' : 'text-slate-400'}`}>
             <User size={18} />
             <span>Perfil</span>
           </button>
