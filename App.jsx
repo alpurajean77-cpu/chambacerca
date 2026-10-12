@@ -349,9 +349,11 @@ export default function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   const [userCoords, setUserCoords] = useState(null);
-  const [geoStatus, setGeoStatus] = useState('Obteniendo GPS...');
+  const [geoStatus, setGeoStatus] = useState('Solicitando GPS...');
 
-  const [distanceFilter, setDistanceFilter] = useState(15); 
+  // INTERVALO DE DISTANCIA (MÍNIMO Y MÁXIMO EN KM)
+  const [minDistanceFilter, setMinDistanceFilter] = useState(0); 
+  const [maxDistanceFilter, setMaxDistanceFilter] = useState(20); 
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const [activeChat, setActiveChat] = useState(null);
@@ -363,8 +365,8 @@ export default function App() {
   const [reportTarget, setReportTarget] = useState(null);
   const [reportReason, setReportReason] = useState('🚫 Perfil o empleo falso / fraude');
 
-  // AUTENTICACIÓN SEGURA (GOOGLE Y ENLACE MÁGICO AL CORREO)
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  // AUTENTICACIÓN: MODAL VISIBLE DE FORMA AUTOMÁTICA AL ABRIR LA APP
+  const [showAuthModal, setShowAuthModal] = useState(true);
   const [emailInput, setEmailInput] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
@@ -391,9 +393,34 @@ export default function App() {
   const [newDesc, setNewDesc] = useState('');
   const [businessLogo, setBusinessLogo] = useState(null);
 
+  // GEOLOCALIZACIÓN NATIVA CON SOLICITUD DE PERMISOS ACTIVA
+  const requestGPSLocation = () => {
+    setGeoStatus('Obteniendo ubicación GPS...');
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserCoords(coords);
+          setSelectedCoords(coords);
+          setGeoStatus('GPS Activo 📍');
+        },
+        (err) => {
+          console.warn("Error GPS:", err);
+          setGeoStatus('Ubicación no permitida ⚠️');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    } else {
+      setGeoStatus('GPS no soportado');
+    }
+  };
+
+  useEffect(() => {
+    requestGPSLocation();
+  }, []);
+
   // VERIFICAR ENLACE MÁGICO DE CORREO Y SESIÓN DE USUARIO
   useEffect(() => {
-    // Verificar si el usuario viene dando clic en el enlace de correo
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem('emailForSignIn');
       if (!email) {
@@ -406,6 +433,7 @@ export default function App() {
             window.localStorage.removeItem('emailForSignIn');
             setCurrentUser(result.user);
             setCurrentUserId(result.user.uid);
+            setShowAuthModal(false);
             setAuthLoading(false);
             alert("¡Correo verificado con éxito! Bienvenido a ChambaCerca.");
           })
@@ -421,6 +449,7 @@ export default function App() {
       if (user) {
         setCurrentUser(user);
         setCurrentUserId(user.uid);
+        setShowAuthModal(false); // Ocultar modal si ya hay sesión iniciada
       } else {
         setCurrentUser(null);
         setCurrentUserId('');
@@ -440,22 +469,6 @@ export default function App() {
       setIsTransitioning(false);
     }, 250);
   };
-
-  // GEOLOCALIZACIÓN NATIVA
-  useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setUserCoords(coords);
-          setSelectedCoords(coords);
-          setGeoStatus('GPS Activo 📍');
-        },
-        () => setGeoStatus('Ubicación aproximada'),
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
-  }, []);
 
   // CARGAR MI PERFIL DESDE FIREBASE
   useEffect(() => {
@@ -585,7 +598,7 @@ export default function App() {
 
     setAuthLoading(true);
     const actionCodeSettings = {
-      url: window.location.href, // Redirige de vuelta a la misma página
+      url: window.location.href,
       handleCodeInApp: true,
     };
 
@@ -607,7 +620,7 @@ export default function App() {
     setCurrentUser(null);
     setCurrentUserId('');
     playSound('click');
-    alert("Sesión cerrada.");
+    setShowAuthModal(true);
   };
 
   // GUARDAR PERFIL EN FIRESTORE
@@ -716,7 +729,6 @@ export default function App() {
     }
   };
 
-  // CAMBIAR ESTADO VACANTE
   const handleToggleJobStatus = async (jobId, currentStatus) => {
     playSound('click');
     const newStatus = currentStatus === 'filled' ? 'active' : 'filled';
@@ -727,7 +739,6 @@ export default function App() {
     }
   };
 
-  // ELIMINAR VACANTE
   const handleDeleteJob = async (jobId) => {
     playSound('pass');
     if (confirm("¿Seguro que deseas eliminar esta vacante permanentemente?")) {
@@ -801,7 +812,6 @@ export default function App() {
     }
   };
 
-  // ENVIAR REPORTE
   const handleReportSubmit = async () => {
     if (!reportTarget) return;
 
@@ -825,17 +835,22 @@ export default function App() {
     }
   };
 
+  // FILTRADO DE DISTANCIA ESTRICTO CON RANGO MÍNIMO Y MÁXIMO
   const filteredJobs = jobs.filter(job => {
     if (job.status === 'filled') return false;
     if (!userCoords || !job.lat || !job.lng) return true;
     const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, job.lat, job.lng);
-    return dist === null || parseFloat(dist) <= distanceFilter;
+    if (dist === null) return true;
+    const distNum = parseFloat(dist);
+    return distNum >= minDistanceFilter && distNum <= maxDistanceFilter;
   });
 
   const filteredCandidates = candidates.filter(cand => {
     if (!userCoords || !cand.lat || !cand.lng) return true;
     const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, cand.lat, cand.lng);
-    return dist === null || parseFloat(dist) <= distanceFilter;
+    if (dist === null) return true;
+    const distNum = parseFloat(dist);
+    return distNum >= minDistanceFilter && distNum <= maxDistanceFilter;
   });
 
   const myPostedJobs = jobs.filter(job => job.ownerId === currentUserId);
@@ -967,43 +982,69 @@ export default function App() {
           </div>
         )}
 
-        {/* EXPLORAR / MATCHING CON RADAR DE DISTANCIA */}
+        {/* EXPLORAR / MATCHING CON RADAR DE INTERVALO DE DISTANCIA (MIN - MAX) */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
             <div className={`p-3 rounded-2xl shadow-sm border space-y-2 ${getCardClasses()}`}>
               <div className="flex justify-between items-center text-xs font-semibold">
-                <div className="flex items-center space-x-2">
+                <button 
+                  onClick={requestGPSLocation}
+                  className="flex items-center space-x-1.5 hover:text-indigo-600 transition"
+                  title="Haz clic para actualizar tu GPS"
+                >
                   <Navigation size={14} className="text-indigo-500 animate-pulse" />
                   <span>{geoStatus}</span>
+                </button>
+
+                <div className="flex items-center space-x-2">
                   <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
                     {userRole === 'seeker' ? `${filteredJobs.length} Vacantes` : `${filteredCandidates.length} Candidatos`}
                   </span>
-                </div>
 
-                <button 
-                  onClick={() => setShowFilterPanel(!showFilterPanel)}
-                  className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[11px] font-bold flex items-center space-x-1 border border-indigo-100"
-                >
-                  <Sliders size={12} />
-                  <span>Radar: {distanceFilter} km</span>
-                </button>
+                  <button 
+                    onClick={() => setShowFilterPanel(!showFilterPanel)}
+                    className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[11px] font-bold flex items-center space-x-1 border border-indigo-100"
+                  >
+                    <Sliders size={12} />
+                    <span>Radar: {minDistanceFilter} - {maxDistanceFilter} km</span>
+                  </button>
+                </div>
               </div>
 
+              {/* PANEL DE DOS BARRAS DESLIZANTES PARA RANGO DE DISTANCIA */}
               {showFilterPanel && (
-                <div className="pt-2 border-t space-y-1">
-                  <div className="flex justify-between text-[11px] font-bold opacity-70">
-                    <span>Radio de búsqueda:</span>
-                    <span className="text-indigo-600 font-extrabold">{distanceFilter} km</span>
+                <div className="pt-3 border-t space-y-3">
+                  <div className="flex justify-between text-[11px] font-bold opacity-80">
+                    <span>Margen de distancia seleccionado:</span>
+                    <span className="text-indigo-600 font-extrabold">{minDistanceFilter} km  a  {maxDistanceFilter} km</span>
                   </div>
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="50" 
-                    value={distanceFilter}
-                    onChange={(e) => setDistanceFilter(Number(e.target.value))}
-                    className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 block">Mínimo: {minDistanceFilter} km</label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max={maxDistanceFilter} 
+                        value={minDistanceFilter}
+                        onChange={(e) => setMinDistanceFilter(Number(e.target.value))}
+                        className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 block">Máximo: {maxDistanceFilter} km</label>
+                      <input 
+                        type="range" 
+                        min={minDistanceFilter} 
+                        max="100" 
+                        value={maxDistanceFilter}
+                        onChange={(e) => setMaxDistanceFilter(Number(e.target.value))}
+                        className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1026,7 +1067,7 @@ export default function App() {
                         <span>
                           {userCoords && filteredJobs[jobIndex].lat && filteredJobs[jobIndex].lng
                             ? `${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km`
-                            : 'Cerca'}
+                            : 'Distancia desconocida'}
                         </span>
                       </div>
 
@@ -1074,8 +1115,9 @@ export default function App() {
                 </div>
               ) : (
                 <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
-                  <div className="text-4xl">🎉</div>
-                  <h3 className="font-bold">Has visto todas las vacantes en un radio de {distanceFilter} km</h3>
+                  <div className="text-4xl">📍</div>
+                  <h3 className="font-bold">No hay vacantes en el margen de {minDistanceFilter} km a {maxDistanceFilter} km</h3>
+                  <p className="text-xs text-slate-400">Intenta ampliar tu margen de búsqueda en el botón de Radar.</p>
                   <button onClick={() => setJobIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Reiniciar Lista</button>
                 </div>
               )
@@ -1149,7 +1191,7 @@ export default function App() {
               ) : (
                 <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
                   <div className="text-4xl">👨‍🎓</div>
-                  <h3 className="font-bold">Has visto todos los prospectos cercanos</h3>
+                  <h3 className="font-bold">No hay prospectos en el rango de {minDistanceFilter} km a {maxDistanceFilter} km</h3>
                   <button onClick={() => setCandidateIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Volver a revisar</button>
                 </div>
               )
@@ -1564,7 +1606,7 @@ export default function App() {
 
       </main>
 
-      {/* MODAL REGISTRO / AUTENTICACIÓN ULTRA SEGURA (GOOGLE Y CORREO SIN CONTRASEÑA) */}
+      {/* MODAL REGISTRO AUTOMÁTICO AL ENTRAR A LA PÁGINA */}
       {showAuthModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
@@ -1573,11 +1615,13 @@ export default function App() {
                 <Lock size={16} />
                 <span>Ingresa a ChambaCerca</span>
               </h3>
-              <button onClick={() => setShowAuthModal(false)} className="text-slate-400"><X size={16} /></button>
+              {currentUser && (
+                <button onClick={() => setShowAuthModal(false)} className="text-slate-400"><X size={16} /></button>
+              )}
             </div>
 
             <p className="text-xs text-slate-500">
-              Registrate con un clic o verifica tu correo con un enlace seguro.
+              Registrate con un clic o verifica tu correo con un enlace seguro para usar la app.
             </p>
 
             {/* BOTÓN GOOGLE / GMAIL */}
@@ -1660,7 +1704,7 @@ export default function App() {
             </div>
 
             <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda estrictamente prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
+              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda strictly prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
               <p><strong>2. Protección de Datos Personales:</strong> ChambaCerca no comparte tu número de teléfono ni tus coordenadas exactas sin tu consentimiento directo al hacer match.</p>
               <p><strong>3. Verificación de Negocios:</strong> Los negocios deben utilizar direcciones geolocalizadas reales para garantizar ofertas de trabajo seguras para los jóvenes.</p>
             </div>
