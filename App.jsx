@@ -2,11 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   MapPin, DollarSign, Clock, Heart, X, 
   MessageSquare, User, Building, Search, 
-  Sliders, Navigation, Camera, Image as ImageIcon, Upload,
-  Check, Save, Loader2,
-  Trash2, CheckCircle, ShieldAlert, Settings, Palette,
-  Lock, Flag, EyeOff, Sparkles, Send, ArrowLeft, LogOut, Mail,
-  SlidersHorizontal, RefreshCw
+  SlidersHorizontal, Navigation, Camera, ImageIcon,
+  Check, Save, Loader2, Trash2, CheckCircle,
+  Settings, Palette, Flag, Send, ArrowLeft, LogOut,
+  Sparkles, Briefcase, ChevronDown, ChevronUp, Star, Zap
 } from 'lucide-react';
 
 // Importaciones de Firebase
@@ -54,23 +53,23 @@ const playSound = (type) => {
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(400, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.12);
+      osc.frequency.setValueAtTime(420, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(840, ctx.currentTime + 0.14);
       gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.14);
       osc.start();
-      osc.stop(ctx.currentTime + 0.12);
+      osc.stop(ctx.currentTime + 0.14);
     } else if (type === 'pass') {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(250, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(260, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
       osc.start();
-      osc.stop(ctx.currentTime + 0.1);
+      osc.stop(ctx.currentTime + 0.12);
     } else if (type === 'match') {
       const notes = [523.25, 659.25, 783.99, 1046.50];
       notes.forEach((freq, idx) => {
@@ -79,32 +78,21 @@ const playSound = (type) => {
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.15, ctx.currentTime + idx * 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.2);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime + idx * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.22);
         osc.start(ctx.currentTime + idx * 0.08);
-        osc.stop(ctx.currentTime + idx * 0.08 + 0.2);
+        osc.stop(ctx.currentTime + idx * 0.08 + 0.22);
       });
     } else if (type === 'click') {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.setValueAtTime(650, ctx.currentTime);
       gain.gain.setValueAtTime(0.05, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
       osc.start();
       osc.stop(ctx.currentTime + 0.05);
-    } else if (type === 'message') {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.16);
     }
   } catch (e) {
     console.log("Audio no disponible", e);
@@ -136,28 +124,32 @@ const convertFileToBase64 = (file) => {
   });
 };
 
-// TRABAJOS Y CANDIDATOS DE RESPALDO INICIALES
+// VACANTES DE DEMOSTRACIÓN CON DISEÑO ENRIQUECIDO
 const DEMO_JOBS = [
   {
     id: 'demo-job-1',
-    title: 'Barista / Mesero Principal',
+    title: 'Barista Principal / Atención',
     company: 'Cafetería El Portal',
-    salary: '$1,500 sem. + Propinas',
-    schedule: 'Turno Matutino (8:00 AM - 4:00 PM)',
+    salary: '$1,600 sem. + Propinas',
+    schedule: 'Matutino (8:00 AM - 4:00 PM)',
     address: 'Centro Histórico, Córdoba, Ver.',
-    description: 'Buscamos barista con pasión por el café y atención cordial a clientes. Excelente ambiente laboral.',
+    description: 'Buscamos barista con actitud proactiva para preparación de café de especialidad y atención cálida al cliente en barra.',
+    tags: ['Barista', 'Cafetería', 'Inmediato'],
+    urgency: 'Alta',
     lat: 18.8939,
     lng: -96.9356,
     status: 'active'
   },
   {
     id: 'demo-job-2',
-    title: 'Plomero / Mantenimiento Comercial',
+    title: 'Técnico en Plomería Comercial',
     company: 'Servicios Integrales San José',
-    salary: '$600 por servicio',
+    salary: '$700 por trabajo',
     schedule: 'Horario Flexible',
     address: 'Av. 3 y Calle 9, Córdoba, Ver.',
-    description: 'Atención a tuberías residenciales y comerciales. Pago inmediato al finalizar el servicio.',
+    description: 'Mantenimiento preventivo e instalación de sistemas hidráulicos en comercios locales. Pago al instante al terminar.',
+    tags: ['Plomería', 'Por trabajo', 'Urgente'],
+    urgency: 'Urgente',
     lat: 18.8960,
     lng: -96.9320,
     status: 'active'
@@ -166,28 +158,31 @@ const DEMO_JOBS = [
     id: 'demo-job-3',
     title: 'Auxiliar de Reparto y Almacén',
     company: 'Refaccionaria del Centro',
-    salary: '$1,800 sem.',
+    salary: '$1,850 sem.',
     schedule: 'Lunes a Sábado (9:00 AM - 6:00 PM)',
     address: 'Calle 11, Córdoba, Ver.',
-    description: 'Organización de inventario y entrega local de pedidos. Licencia de conducir vigente preferible.',
+    description: 'Control de inventario básico y entrega de pedidos locales en motocicleta o camioneta. Prestaciones de ley.',
+    tags: ['Almacén', 'Reparto', 'Licencia B'],
+    urgency: 'Normal',
     lat: 18.8910,
     lng: -96.9390,
     status: 'active'
   }
 ];
 
+// CANDIDATOS DE DEMOSTRACIÓN CON MÁS ATRIBUTOS
 const DEMO_CANDIDATES = [
   {
     id: 'cand-1',
     name: 'Sofía Martínez',
     age: '21 años',
     role: 'Atención a Clientes / Barista',
-    desiredRole: 'Barista / Mesera',
-    expectedSalary: '$1,500 - $2,000 sem.',
+    desiredRole: 'Barista / Mesera / Recepción',
+    expectedSalary: '$1,600 - $2,200 sem.',
     availableSchedule: 'Medio Tiempo / Mañanas',
-    skills: 'Manejo de caja, Preparación de café espresso, Trabajo en equipo',
-    bio: 'Estudiante universitaria proactiva con 1 año de experiencia en cafeterías. Apasionada del buen trato al cliente.',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=250',
+    skills: ['Manejo de Caja', 'Espresso', 'Atención Cálida', 'Inglés Básico'],
+    bio: 'Estudiante universitaria de comunicación. 1 año de experiencia en barra de café. Me apasiona el servicio al cliente y aprender rápido.',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300',
     banner: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600',
     lat: 18.8950,
     lng: -96.9320
@@ -195,14 +190,14 @@ const DEMO_CANDIDATES = [
   {
     id: 'cand-2',
     name: 'Carlos Mendoza',
-    age: '22 años',
+    age: '23 años',
     role: 'Auxiliar General / Repartidor',
-    desiredRole: 'Repartidor / Almacenista',
-    expectedSalary: '$1,800 sem.',
+    desiredRole: 'Repartidor / Almacenista / Chófer',
+    expectedSalary: '$1,900 sem.',
     availableSchedule: 'Tiempo Completo',
-    skills: 'Licencia de conducir vigente, Puntualidad, Orientación GPS',
-    bio: 'Disponibilidad inmediata para turnos matutinos o vespertinos. Responsable y con ganas de trabajar.',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=250',
+    skills: ['Licencia Vigente', 'Puntualidad', 'Rutas Locales', 'Carga Pesada'],
+    bio: 'Joven responsable con excelente conocimiento de las calles de la ciudad. Experiencia en reparto y mensajería rápida.',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300',
     banner: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=600',
     lat: 18.8910,
     lng: -96.9280
@@ -219,7 +214,7 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
   const [selectedCoords, setSelectedCoords] = useState(
     initialCoords || userCoords || { lat: 18.8939, lng: -96.9356 }
   );
-  const [addressName, setAddressName] = useState('Cargando dirección...');
+  const [addressName, setAddressName] = useState('Obteniendo dirección...');
 
   useEffect(() => {
     const loadLeaflet = async () => {
@@ -270,9 +265,9 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
 
     const customIcon = L.divIcon({
       className: 'custom-pin',
-      html: `<div style="background-color: #4f46e5; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px;">📍</div>`,
-      iconSize: [26, 26],
-      iconAnchor: [13, 13]
+      html: `<div style="background: linear-gradient(135deg, #6366f1, #a855f7); width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 6px 14px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 13px;">📍</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
     });
 
     const marker = L.marker([selectedCoords.lat, selectedCoords.lng], { draggable: true, icon: customIcon }).addTo(map);
@@ -325,8 +320,8 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
       <div className="bg-white w-full max-w-md mx-auto rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh]">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
-            <h3 className="font-bold text-slate-800 text-sm">Selecciona la ubicación exacta</h3>
-            <p className="text-[10px] text-slate-500">Arrastra el pin o haz clic en el punto deseado</p>
+            <h3 className="font-bold text-slate-800 text-sm">Selecciona ubicación exacta</h3>
+            <p className="text-[10px] text-slate-500">Arrastra el marcador o pulsa sobre el mapa</p>
           </div>
           <button onClick={onClose} className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-full transition">
             <X size={16} />
@@ -337,12 +332,12 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
           <form onSubmit={handleSearchOnMap} className="flex gap-2">
             <input 
               type="text" 
-              placeholder="Buscar colonia, calle o ciudad..."
+              placeholder="Buscar colonia, calle o referencia..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 bg-slate-100 px-3 py-2 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"
             />
-            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition">
+            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition">
               Buscar
             </button>
           </form>
@@ -356,7 +351,7 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
           <div className="bg-slate-50 p-3 rounded-2xl border flex items-start space-x-2">
             <MapPin size={18} className="text-indigo-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Dirección seleccionada:</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Ubicación elegida:</p>
               <p className="text-xs font-medium text-slate-700">{addressName}</p>
             </div>
           </div>
@@ -364,7 +359,7 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
           <button 
             type="button"
             onClick={() => onConfirm({ coords: selectedCoords, address: addressName })}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
+            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3.5 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-lg hover:opacity-95 transition active:scale-98"
           >
             <Check size={16} />
             <span>Confirmar esta ubicación</span>
@@ -380,14 +375,15 @@ export default function App() {
   const [currentUserId, setCurrentUserId] = useState('');
 
   const [currentPage, setCurrentPage] = useState('landing'); 
-  const [userRole, setUserRole] = useState('seeker'); 
-  const [theme, setTheme] = useState('indigo'); // 'indigo' | 'dark' | 'emerald' | 'sunset'
+  const [userRole, setUserRole] = useState('seeker'); // 'seeker' | 'business'
+  const [theme, setTheme] = useState('indigo');
 
   const [jobs, setJobs] = useState(DEMO_JOBS);
   const [candidates, setCandidates] = useState(DEMO_CANDIDATES);
   
   const [jobIndex, setJobIndex] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
+  const [showJobDetails, setShowJobDetails] = useState(false);
   
   const [matches, setMatches] = useState([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
@@ -401,23 +397,17 @@ export default function App() {
   const [userCoords, setUserCoords] = useState({ lat: 18.8939, lng: -96.9356 });
   const [geoStatus, setGeoStatus] = useState('Obteniendo GPS...');
 
-  // FILTRO DE RADAR DUAL (PUNTO A A PUNTO B EN KILÓMETROS)
+  // RADAR DE RANGO DUAL (DESDE PUNTO A HASTA PUNTO B)
   const [minDistance, setMinDistance] = useState(0);
   const [maxDistance, setMaxDistance] = useState(25);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-
-  const [activeChat, setActiveChat] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [newMessageText, setNewMessageText] = useState('');
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
   const [reportReason, setReportReason] = useState('🚫 Perfil o empleo falso / fraude');
 
-  // AUTENTICACIÓN GOOGLE & ENLACE MÁGICO
+  // AUTENTICACIÓN GOOGLE
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
 
   // PERFIL COMPLETO DE CANDIDATO
@@ -426,15 +416,16 @@ export default function App() {
     age: '21 años',
     role: 'Atención a Clientes',
     desiredRole: 'Barista / Mesera / Recepcionista',
-    expectedSalary: '$1,500 - $2,200 sem.',
+    expectedSalary: '$1,600 - $2,200 sem.',
     availableSchedule: 'Medio Tiempo / Vespertino',
-    skills: 'Puntualidad, Trabajo en equipo, Manejo de caja',
-    bio: 'Joven entusiasta buscando oportunidades laborales formales o de medio tiempo.',
+    skills: ['Atención Cálida', 'Manejo de Caja', 'Espresso', 'Trabajo en equipo'],
+    skillsText: 'Atención Cálida, Manejo de Caja, Espresso, Trabajo en equipo',
+    bio: 'Joven entusiasta buscando oportunidades laborales formales o de medio tiempo cerca de mi zona.',
     avatar: null,
     banner: null
   });
 
-  // DATOS PUBLICACIÓN DE VACANTE
+  // DATOS PARA NUEVA VACANTE
   const [newTitle, setNewTitle] = useState('');
   const [newCompany, setNewCompany] = useState('');
   const [newAddress, setNewAddress] = useState('');
@@ -444,9 +435,8 @@ export default function App() {
   const [newSalary, setNewSalary] = useState('');
   const [newSchedule, setNewSchedule] = useState('');
   const [newDesc, setNewDesc] = useState('');
-  const [businessLogo, setBusinessLogo] = useState(null);
 
-  // PETICIÓN DE NAVEGADOR PARA GEOLOCALIZACIÓN
+  // PETICIÓN GEOLOCALIZACIÓN GPS
   const requestLocation = () => {
     if ("geolocation" in navigator) {
       setGeoStatus('Solicitando GPS...');
@@ -464,7 +454,7 @@ export default function App() {
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      setGeoStatus('GPS no disponible');
+      setGeoStatus('GPS no soportado');
     }
   };
 
@@ -472,30 +462,8 @@ export default function App() {
     requestLocation();
   }, []);
 
-  // ESCUCHAR ENLACE MÁGICO Y ESTADO DE FIRESTORE
+  // FIRESTORE Y AUTH LISTENERS
   useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      let email = window.localStorage.getItem('emailForSignIn');
-      if (!email) {
-        email = window.prompt('Confirma tu correo electrónico:');
-      }
-      if (email) {
-        setAuthLoading(true);
-        signInWithEmailLink(auth, email, window.location.href)
-          .then((result) => {
-            window.localStorage.removeItem('emailForSignIn');
-            setCurrentUser(result.user);
-            setCurrentUserId(result.user.uid);
-            setAuthLoading(false);
-            alert("¡Correo verificado! Bienvenido a ChambaCerca.");
-          })
-          .catch((error) => {
-            console.error(error);
-            setAuthLoading(false);
-          });
-      }
-    }
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUser(user);
@@ -508,7 +476,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // TRANSICIÓN ANIMADA DE PÁGINAS Y MODOS
   const navigateTo = (page, role = userRole) => {
     playSound('click');
     setIsTransitioning(true);
@@ -517,11 +484,12 @@ export default function App() {
       setCurrentPage(page);
       setJobIndex(0);
       setCandidateIndex(0);
+      setShowJobDetails(false);
       setIsTransitioning(false);
-    }, 200);
+    }, 180);
   };
 
-  // ESCUCHAR VACANTES DESDE FIRESTORE
+  // VACANTES DE FIRESTORE
   useEffect(() => {
     const q = query(collection(db, "vacantes"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -534,7 +502,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // ESCUCHAR PERFILES DESDE FIRESTORE
+  // PERFILES DE FIRESTORE
   useEffect(() => {
     const q = query(collection(db, "perfiles"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -543,11 +511,10 @@ export default function App() {
         setCandidates([...realProfiles, ...DEMO_CANDIDATES]);
       }
     }, (err) => console.warn(err));
-
     return () => unsubscribe();
   }, []);
 
-  // CARGAR MI PERFIL
+  // MI PERFIL EN FIRESTORE
   useEffect(() => {
     if (!currentUserId) return;
     const fetchProfile = async () => {
@@ -555,7 +522,12 @@ export default function App() {
         const docRef = doc(db, "perfiles", currentUserId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setCandidateProfile(prev => ({ ...prev, ...docSnap.data() }));
+          const data = docSnap.data();
+          setCandidateProfile(prev => ({ 
+            ...prev, 
+            ...data,
+            skillsText: Array.isArray(data.skills) ? data.skills.join(', ') : (data.skillsText || data.skills || '')
+          }));
         }
       } catch (err) {
         console.error(err);
@@ -564,7 +536,7 @@ export default function App() {
     fetchProfile();
   }, [currentUserId]);
 
-  // ESCUCHAR MATCHES REALES EN TIEMPO REAL
+  // MATCHES RECÍPROCOS EN TIEMPO REAL
   useEffect(() => {
     if (!currentUserId) return;
     const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
@@ -576,7 +548,7 @@ export default function App() {
     return () => unsubscribe();
   }, [currentUserId]);
 
-  // INICIO DE SESIÓN GOOGLE
+  // INICIO DE SESIÓN CON GOOGLE
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     try {
@@ -593,30 +565,6 @@ export default function App() {
     }
   };
 
-  // ENVIAR ENLACE MÁGICO
-  const handleSendMagicLink = async (e) => {
-    e.preventDefault();
-    if (!emailInput) return;
-
-    setAuthLoading(true);
-    const actionCodeSettings = {
-      url: window.location.href,
-      handleCodeInApp: true,
-    };
-
-    try {
-      await sendSignInLinkToEmail(auth, emailInput, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', emailInput);
-      setEmailSent(true);
-      setAuthLoading(false);
-      playSound('message');
-    } catch (error) {
-      console.error(error);
-      alert("No se pudo enviar el enlace.");
-      setAuthLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
     await signOut(auth);
     setCurrentUser(null);
@@ -624,7 +572,7 @@ export default function App() {
     playSound('click');
   };
 
-  // GUARDAR PERFIL EN FIRESTORE
+  // GUARDAR PERFIL
   const handleSaveProfile = async () => {
     if (!currentUser) {
       setShowAuthModal(true);
@@ -633,8 +581,20 @@ export default function App() {
     playSound('click');
     setIsSavingProfile(true);
     try {
+      const skillsArray = candidateProfile.skillsText
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      const updatedData = {
+        ...candidateProfile,
+        skills: skillsArray,
+        updatedAt: serverTimestamp()
+      };
+
       const docRef = doc(db, "perfiles", currentUserId);
-      await setDoc(docRef, { ...candidateProfile, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(docRef, updatedData, { merge: true });
+      setCandidateProfile(prev => ({ ...prev, skills: skillsArray }));
       setIsSavingProfile(false);
       setProfileSavedNotice(true);
       setTimeout(() => setProfileSavedNotice(false), 3000);
@@ -644,7 +604,6 @@ export default function App() {
     }
   };
 
-  // MANEJO DE IMÁGENES BASE64 DE PORTADA Y AVATAR
   const handleImageUpload = async (e, field) => {
     const file = e.target.files[0];
     if (file) {
@@ -653,9 +612,7 @@ export default function App() {
     }
   };
 
-  // =========================================================================
-  // LÓGICA DE MATCH DE DOBLE VÍA (SIN MATCHES FALSOS)
-  // =========================================================================
+  // LÓGICA ESTRICTA DE MATCH DE DOBLE VÍA
   const handleLike = async (item) => {
     if (!currentUser) {
       setShowAuthModal(true);
@@ -666,14 +623,12 @@ export default function App() {
     const targetUserId = userRole === 'seeker' ? (item.ownerId || item.id) : item.id;
 
     try {
-      // 1. Guardar el "like" emitido en la colección de Likes
       await addDoc(collection(db, "likes"), {
         fromUserId: currentUserId,
         toUserId: targetUserId,
         createdAt: serverTimestamp()
       });
 
-      // 2. Consultar en Firestore si el usuario destino YA habia dado Like previamente al usuario actual
       const reciprocalQuery = query(
         collection(db, "likes"),
         where("fromUserId", "==", targetUserId),
@@ -682,13 +637,11 @@ export default function App() {
 
       const reciprocalSnap = await getDocs(reciprocalQuery);
 
-      // ÚNICAMENTE SI EXISTE EL LIKE RECÍPROCO SE DESENCADENA EL MATCH
       if (!reciprocalSnap.empty) {
         setLastMatch(item);
         setShowMatchModal(true);
         playSound('match');
 
-        // Crear registros de Match para ambos usuarios
         await addDoc(collection(db, "matches"), {
           userId: currentUserId,
           item: item,
@@ -704,20 +657,22 @@ export default function App() {
         });
       }
     } catch (err) {
-      console.error("Error en procesamiento de Like:", err);
+      console.error("Error en Like:", err);
     }
 
+    setShowJobDetails(false);
     if (userRole === 'seeker') setJobIndex(jobIndex + 1);
     else setCandidateIndex(candidateIndex + 1);
   };
 
   const handlePass = () => {
     playSound('pass');
+    setShowJobDetails(false);
     if (userRole === 'seeker') setJobIndex(jobIndex + 1);
     else setCandidateIndex(candidateIndex + 1);
   };
 
-  // FILTRADO DE RADAR GPS DUAL (DESDE PUNTO A HASTA PUNTO B)
+  // FILTRADO DE RADAR GPS DUAL (PUNTO A A PUNTO B)
   const filteredJobs = jobs.filter(job => {
     if (job.status === 'filled') return false;
     if (!userCoords || !job.lat || !job.lng) return true;
@@ -738,7 +693,6 @@ export default function App() {
   const currentJob = filteredJobs[jobIndex];
   const currentCandidate = filteredCandidates[candidateIndex];
 
-  // CONFIGURACIÓN DE CLASES Y TEMAS
   const getThemeClasses = () => {
     switch (theme) {
       case 'dark':
@@ -764,7 +718,7 @@ export default function App() {
 
       {/* OVERLAY DE TRANSICIÓN ANIMADA */}
       <div className={`fixed inset-0 pointer-events-none z-50 transition-opacity duration-200 flex items-center justify-center ${isTransitioning ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="w-24 h-24 bg-indigo-500/30 backdrop-blur-md rounded-full animate-ping"></div>
+        <div className="w-20 h-20 bg-indigo-500/30 backdrop-blur-md rounded-full animate-ping"></div>
       </div>
 
       {showMapPicker && (
@@ -780,16 +734,21 @@ export default function App() {
         />
       )}
 
-      {/* HEADER PRINCIPAL */}
-      {currentPage !== 'landing' && !activeChat && (
+      {/* HEADER PRINCIPAL CON DETECCIÓN DE ROL */}
+      {currentPage !== 'landing' && (
         <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 px-4 py-3 flex justify-between items-center sticky top-0 z-30 shadow-sm">
           <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo('explore', userRole)}>
             <div className="bg-gradient-to-tr from-indigo-600 to-purple-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9 shadow-md shadow-indigo-200 dark:shadow-none">
               ⚡
             </div>
-            <span className="font-black text-xl tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-              ChambaCerca
-            </span>
+            <div>
+              <span className="font-black text-lg tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent block leading-none">
+                ChambaCerca
+              </span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                {userRole === 'seeker' ? 'Modo Buscador' : 'Modo Negocio'}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -804,6 +763,7 @@ export default function App() {
               <button 
                 onClick={handleLogout}
                 className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2.5 py-1.5 rounded-full border border-rose-200 flex items-center space-x-1 hover:bg-rose-100 transition"
+                title="Cerrar sesión"
               >
                 <LogOut size={12} />
                 <span>Salir</span>
@@ -813,19 +773,21 @@ export default function App() {
             <button 
               onClick={() => navigateTo('settings')}
               className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition"
-              title="Ajustes y temas"
+              title="Ajustes y Tema"
             >
               <Palette size={16} />
             </button>
 
+            {/* CONMUTADOR DE ROL RÁPIDO */}
             <button 
               onClick={() => {
                 const nextRole = userRole === 'seeker' ? 'business' : 'seeker';
                 navigateTo('explore', nextRole);
               }}
-              className="text-xs font-bold bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-full border border-indigo-100 dark:border-slate-700 shadow-sm hover:scale-105 transition"
+              className="text-xs font-bold bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-full border border-indigo-100 dark:border-slate-700 shadow-sm hover:scale-105 transition flex items-center space-x-1"
             >
-              {userRole === 'seeker' ? '👤 Buscador' : '🏪 Negocio'}
+              <Zap size={13} className="text-amber-500 fill-amber-500" />
+              <span>{userRole === 'seeker' ? 'Cambiar a Negocio' : 'Cambiar a Buscador'}</span>
             </button>
           </div>
         </header>
@@ -833,7 +795,7 @@ export default function App() {
 
       <main className="flex-1 pb-20">
 
-        {/* PÁGINA 1: LANDING CON ESTILO TINDER */}
+        {/* PÁGINA 1: LANDING */}
         {currentPage === 'landing' && (
           <div className="min-h-screen flex flex-col justify-between p-6 bg-gradient-to-b from-indigo-900 via-indigo-800 to-slate-950 text-white">
             <div className="pt-10 text-center space-y-3">
@@ -842,14 +804,14 @@ export default function App() {
               </div>
               <h1 className="text-4xl font-black tracking-tight">ChambaCerca</h1>
               <p className="text-indigo-200 text-xs max-w-xs mx-auto leading-relaxed">
-                Emparejamiento laboral dinámico y rápido por proximidad GPS.
+                Descubre empleos o contrataciones al instante por radar GPS nativo.
               </p>
 
               <button 
                 onClick={requestLocation}
                 className="mt-2 bg-white/10 hover:bg-white/20 text-indigo-100 text-xs px-3.5 py-1.5 rounded-full border border-white/20 inline-flex items-center space-x-1.5 transition"
               >
-                <Navigation size={12} className="animate-pulse" />
+                <Navigation size={12} className="animate-pulse text-indigo-300" />
                 <span>{geoStatus}</span>
               </button>
             </div>
@@ -869,7 +831,7 @@ export default function App() {
                 className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-extrabold py-3.5 rounded-2xl shadow-xl hover:opacity-95 transition flex items-center justify-center space-x-2 text-xs active:scale-98"
               >
                 <User size={16} />
-                <span>Busco Trabajo (Explorar Vacantes)</span>
+                <span>Busco Trabajo (Ver Vacantes Cerca)</span>
               </button>
 
               <button 
@@ -877,21 +839,21 @@ export default function App() {
                 className="w-full bg-indigo-950/80 backdrop-blur-md text-indigo-200 font-extrabold py-3.5 rounded-2xl border border-indigo-400/30 hover:bg-indigo-900 transition flex items-center justify-center space-x-2 text-xs active:scale-98"
               >
                 <Building size={16} />
-                <span>Soy Negocio / Contratante</span>
+                <span>Soy Negocio (Buscar Candidatos / Publicar)</span>
               </button>
             </div>
 
             <div className="text-center text-[10px] text-indigo-300/60 pb-2">
-              ChambaCerca • Conexión Directa GPS
+              ChambaCerca • Conexión Laboral Directa por Radar
             </div>
           </div>
         )}
 
-        {/* PÁGINA 2: EXPLORAR CON RADAR DE RANGO DUAL */}
+        {/* PÁGINA 2: EXPLORAR TARJETAS TINDER CON DISEÑO DINÁMICO */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            {/* Control de Radar GPS con Rango de Punto A a Punto B */}
+            {/* BARRA DE RADAR DE RANGO DUAL */}
             <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs font-semibold shadow-sm">
               <button onClick={requestLocation} className="flex items-center space-x-1.5 text-indigo-600 dark:text-indigo-400">
                 <Navigation size={14} />
@@ -906,12 +868,12 @@ export default function App() {
               </button>
             </div>
 
-            {/* Panel Desplegable con Controles Duales de Rango */}
+            {/* PANEL DESPLEGABLE DUAL */}
             {showFilterPanel && (
               <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4 shadow-xl animate-fadeIn">
                 <div className="flex justify-between items-center text-xs font-bold">
                   <span>Rango del Radar GPS (Punto A ➔ Punto B)</span>
-                  <span className="text-indigo-600">{minDistance} km a {maxDistance} km</span>
+                  <span className="text-indigo-600 dark:text-indigo-400">{minDistance} km a {maxDistance} km</span>
                 </div>
 
                 <div className="space-y-3">
@@ -942,105 +904,143 @@ export default function App() {
               </div>
             )}
 
-            {/* MODO BUSCADOR (VACANTES) */}
+            {/* --- TARJETA DE VACANTE (SI EL ROL ES BUSCADOR) --- */}
             {userRole === 'seeker' && (
               <>
                 {currentJob ? (
                   <div className={`rounded-3xl border overflow-hidden shadow-2xl transition-all duration-300 animate-fadeIn ${getCardTheme()}`}>
-                    <div className="h-44 bg-gradient-to-tr from-indigo-600 to-purple-600 relative p-4 flex items-end">
-                      <div className="text-white space-y-0.5">
-                        <span className="bg-white/20 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          Vacante Activa
+                    
+                    {/* ENCABEZADO DE TARJETA ESTILO TINDER */}
+                    <div className="h-48 bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-600 relative p-5 flex flex-col justify-between">
+                      <div className="flex justify-between items-start">
+                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider border border-white/20">
+                          ⚡ Vacante Activa
                         </span>
-                        <h2 className="text-lg font-black leading-tight">{currentJob.title}</h2>
-                        <p className="text-xs font-medium text-indigo-100">{currentJob.company}</p>
+
+                        <button 
+                          onClick={() => { setReportTarget(currentJob); setShowReportModal(true); }}
+                          className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition"
+                        >
+                          <Flag size={14} />
+                        </button>
                       </div>
 
-                      <button 
-                        onClick={() => { setReportTarget(currentJob); setShowReportModal(true); }}
-                        className="absolute top-3 right-3 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition"
-                      >
-                        <Flag size={14} />
-                      </button>
+                      <div className="text-white space-y-1 z-10">
+                        <h2 className="text-xl font-black leading-tight drop-shadow-sm">{currentJob.title}</h2>
+                        <div className="flex items-center space-x-2 text-xs font-semibold text-indigo-100">
+                          <Building size={14} />
+                          <span>{currentJob.company}</span>
+                        </div>
+                      </div>
                     </div>
 
+                    {/* CUERPO DE TARJETA CON ETIQUETAS Y SUELDO HIGHLIGHT */}
                     <div className="p-5 space-y-4">
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl flex items-center space-x-2">
-                          <DollarSign size={16} className="text-emerald-500 shrink-0" />
-                          <span className="font-bold">{currentJob.salary || 'Sueldo a tratar'}</span>
+                      
+                      {/* HIGHLIGHT DE SUELDO Y HORARIO */}
+                      <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-3.5 rounded-2xl">
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">Sueldo Ofrecido</span>
+                          <span className="text-base font-black text-emerald-700 dark:text-emerald-300">{currentJob.salary || 'A convenir'}</span>
                         </div>
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl flex items-center space-x-2">
-                          <Clock size={16} className="text-indigo-500 shrink-0" />
-                          <span className="font-bold">{currentJob.schedule || 'Horario flexible'}</span>
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Horario</span>
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{currentJob.schedule || 'Flexible'}</span>
                         </div>
                       </div>
 
-                      <div className="flex items-start space-x-2 text-xs text-slate-500 dark:text-slate-400">
+                      {/* UBICACIÓN CON CALCULADORA GPS */}
+                      <div className="flex items-start space-x-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl">
                         <MapPin size={16} className="text-indigo-600 shrink-0 mt-0.5" />
                         <div>
                           <p className="font-semibold text-slate-700 dark:text-slate-300">{currentJob.address}</p>
                           {userCoords && currentJob.lat && (
-                            <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
-                              📍 A {calculateDistanceInKm(userCoords.lat, userCoords.lng, currentJob.lat, currentJob.lng)} km de ti
+                            <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-0.5">
+                              📍 Distancia del radar: {calculateDistanceInKm(userCoords.lat, userCoords.lng, currentJob.lat, currentJob.lng)} km de ti
                             </p>
                           )}
                         </div>
                       </div>
 
+                      {/* ETIQUETAS / TAGS VIBRANTES */}
+                      {currentJob.tags && currentJob.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {currentJob.tags.map((tag, idx) => (
+                            <span key={idx} className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* DESCRIPCIÓN CON BOTÓN EXPANDIBLE */}
                       <div className="space-y-1">
-                        <span className="text-[10px] font-bold uppercase text-slate-400">Descripción</span>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{currentJob.description}</p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold uppercase text-slate-400">Descripción del Puesto</span>
+                          <button 
+                            onClick={() => setShowJobDetails(!showJobDetails)}
+                            className="text-[10px] font-bold text-indigo-600 flex items-center space-x-0.5"
+                          >
+                            <span>{showJobDetails ? 'Ver menos' : 'Ver todo'}</span>
+                            {showJobDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          </button>
+                        </div>
+
+                        <p className={`text-xs text-slate-600 dark:text-slate-300 leading-relaxed ${showJobDetails ? '' : 'line-clamp-2'}`}>
+                          {currentJob.description}
+                        </p>
                       </div>
 
-                      {/* BOTONES DE ACCIÓN LIKES / PASS */}
-                      <div className="flex justify-center space-x-6 pt-2">
+                      {/* BOTONES ACCIÓN TINDER (PASS / LIKE) */}
+                      <div className="flex justify-center space-x-6 pt-3">
                         <button 
                           onClick={handlePass}
-                          className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition"
+                          className="w-16 h-16 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition"
+                          title="Pasar"
                         >
-                          <X size={24} />
+                          <X size={28} />
                         </button>
 
                         <button 
                           onClick={() => handleLike(currentJob)}
-                          className="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-200 hover:scale-110 active:scale-95 transition"
+                          className="w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-200 dark:shadow-none hover:scale-110 active:scale-95 transition"
+                          title="Me interesa (Like)"
                         >
-                          <Heart size={24} fill="currentColor" />
+                          <Heart size={28} fill="currentColor" />
                         </button>
                       </div>
+
                     </div>
                   </div>
                 ) : (
                   <div className="text-center py-16 space-y-3 bg-white dark:bg-slate-900 rounded-3xl border p-6">
                     <Sparkles size={36} className="mx-auto text-indigo-500 animate-pulse" />
                     <h3 className="font-bold text-slate-700 dark:text-slate-200">¡Has visto todas las vacantes en este rango!</h3>
-                    <p className="text-xs text-slate-400">Ajusta el rango de kilómetros en el radar para ver más empleos.</p>
+                    <p className="text-xs text-slate-400">Amplía la distancia del radar arriba para encontrar empleos en municipios vecinos.</p>
                   </div>
                 )}
               </>
             )}
 
-            {/* MODO NEGOCIO (CANDIDATOS) */}
+            {/* --- TARJETA DE CANDIDATO (SI EL ROL ES NEGOCIO) --- */}
             {userRole === 'business' && (
               <>
                 {currentCandidate ? (
                   <div className={`rounded-3xl border overflow-hidden shadow-2xl transition-all duration-300 animate-fadeIn ${getCardTheme()}`}>
                     
-                    {/* BANNER DE FOTO DE PORTADA */}
-                    <div className="h-36 bg-slate-200 relative">
+                    {/* FOTO DE PORTADA Y AVATAR SOBREPUESTO */}
+                    <div className="h-40 bg-slate-200 relative">
                       {currentCandidate.banner ? (
                         <img src={currentCandidate.banner} alt="Portada" className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-r from-purple-500 to-indigo-600"></div>
+                        <div className="w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600"></div>
                       )}
 
-                      {/* AVATAR DE CANDIDATO */}
-                      <div className="absolute -bottom-8 left-6">
+                      <div className="absolute -bottom-9 left-6">
                         <img 
-                          src={currentCandidate.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
+                          src={currentCandidate.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'} 
                           alt="Avatar" 
-                          className="w-20 h-20 rounded-2xl border-4 border-white shadow-md object-cover bg-white"
+                          className="w-20 h-20 rounded-2xl border-4 border-white dark:border-slate-900 shadow-md object-cover bg-white"
                         />
                       </div>
 
@@ -1052,50 +1052,62 @@ export default function App() {
                       </button>
                     </div>
 
-                    <div className="pt-10 p-6 space-y-4">
+                    <div className="pt-11 p-6 space-y-4">
                       <div>
                         <div className="flex items-center space-x-2">
-                          <h2 className="text-lg font-black">{currentCandidate.name}</h2>
-                          <span className="text-xs font-bold text-slate-400">{currentCandidate.age}</span>
+                          <h2 className="text-xl font-black">{currentCandidate.name}</h2>
+                          <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{currentCandidate.age}</span>
                         </div>
-                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{currentCandidate.role}</p>
+                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">{currentCandidate.role}</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl">
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
                           <span className="text-[10px] font-bold uppercase text-slate-400 block">Puesto Buscado</span>
-                          <span className="font-semibold">{currentCandidate.desiredRole || 'General'}</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300">{currentCandidate.desiredRole || 'General'}</span>
                         </div>
 
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl">
-                          <span className="text-[10px] font-bold uppercase text-slate-400 block">Sueldo Esperado</span>
-                          <span className="font-semibold">{currentCandidate.expectedSalary || 'A convenir'}</span>
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                          <span className="text-[10px] font-bold uppercase text-slate-400 block">Sueldo Pretendido</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{currentCandidate.expectedSalary || 'A convenir'}</span>
                         </div>
                       </div>
 
-                      <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl space-y-1">
-                        <span className="text-[10px] font-bold uppercase text-slate-400">Habilidades clave</span>
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{currentCandidate.skills}</p>
-                      </div>
+                      {/* CHIPS DE HABILIDADES */}
+                      {currentCandidate.skills && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold uppercase text-slate-400">Habilidades Destacadas</span>
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {(Array.isArray(currentCandidate.skills) ? currentCandidate.skills : String(currentCandidate.skills).split(',')).map((sk, idx) => (
+                              <span key={idx} className="text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 px-2.5 py-1 rounded-lg border border-purple-100 dark:border-purple-800">
+                                ✓ {String(sk).trim()}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                      <div className="space-y-1">
+                      <div className="space-y-1 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl">
                         <span className="text-[10px] font-bold uppercase text-slate-400">Sobre mí</span>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{currentCandidate.bio}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed italic">"{currentCandidate.bio}"</p>
                       </div>
 
+                      {/* BOTONES ACCIÓN TINDER */}
                       <div className="flex justify-center space-x-6 pt-2">
                         <button 
                           onClick={handlePass}
-                          className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition"
+                          className="w-16 h-16 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition"
+                          title="Pasar"
                         >
-                          <X size={24} />
+                          <X size={28} />
                         </button>
 
                         <button 
                           onClick={() => handleLike(currentCandidate)}
-                          className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200 hover:scale-110 active:scale-95 transition"
+                          className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-indigo-200 dark:shadow-none hover:scale-110 active:scale-95 transition"
+                          title="Me interesa (Like)"
                         >
-                          <Heart size={24} fill="currentColor" />
+                          <Heart size={28} fill="currentColor" />
                         </button>
                       </div>
                     </div>
@@ -1103,7 +1115,8 @@ export default function App() {
                 ) : (
                   <div className="text-center py-16 space-y-3 bg-white dark:bg-slate-900 rounded-3xl border p-6">
                     <User size={36} className="mx-auto text-indigo-500" />
-                    <h3 className="font-bold text-slate-700 dark:text-slate-200">Sin candidatos en este rango</h3>
+                    <h3 className="font-bold text-slate-700 dark:text-slate-200">No hay más candidatos en este rango</h3>
+                    <p className="text-xs text-slate-400">Aumenta la distancia en el filtro para encontrar candidatos más alejados.</p>
                   </div>
                 )}
               </>
@@ -1112,27 +1125,28 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA 3: CHAT Y CONEXIONES (MATCHES REALES) */}
+        {/* PÁGINA 3: CHAT Y CONEXIONES (SÓLO MATCHES REALES) */}
         {currentPage === 'chat' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-lg">Mensajes y Conexiones</h2>
+            <h2 className="font-black text-lg">Mensajes y Matches Reales</h2>
             {matches.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 space-y-2">
-                <MessageSquare size={32} className="mx-auto" />
-                <p className="text-xs">Aún no tienes matches recíprocos. ¡Explora vacantes o candidatos para conectar!</p>
+              <div className="text-center py-12 text-slate-400 space-y-2 bg-white dark:bg-slate-900 rounded-3xl border p-6">
+                <MessageSquare size={32} className="mx-auto text-indigo-500" />
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Aún no tienes conexiones recíprocas.</p>
+                <p className="text-[11px] text-slate-400">Cuando le des "Like" a una persona o empleo que también te dio "Like", aparecerán aquí.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {matches.map(m => (
-                  <div key={m.id || m.matchDocId} className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center space-x-3 shadow-sm hover:border-indigo-500 transition">
-                    <div className="w-11 h-11 bg-indigo-100 rounded-xl flex items-center justify-center font-bold text-indigo-600 shrink-0">
+                  <div key={m.id || m.matchDocId} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center space-x-3 shadow-sm hover:border-indigo-500 transition">
+                    <div className="w-11 h-11 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center font-bold text-white text-lg shrink-0 shadow-md">
                       {m.title ? '🏪' : '👤'}
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-xs">{m.title || m.name}</h4>
-                      <p className="text-[10px] text-slate-400">{m.company || m.role}</p>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-xs truncate">{m.title || m.name}</h4>
+                      <p className="text-[10px] text-slate-400 truncate">{m.company || m.role}</p>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
                       Match Activo
                     </span>
                   </div>
@@ -1142,10 +1156,10 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA 4: PUBLICACIÓN DE VACANTE */}
-        {currentPage === 'post-job' && (
+        {/* PÁGINA 4: PUBLICACIÓN DE VACANTE (SÓLO PARA ROL NEGOCIO) */}
+        {currentPage === 'post-job' && userRole === 'business' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-lg">Publicar Nueva Vacante</h2>
+            <h2 className="font-black text-lg">Publicar Vacante de Empleo</h2>
 
             <form onSubmit={async (e) => {
               e.preventDefault();
@@ -1154,27 +1168,63 @@ export default function App() {
                 await addDoc(collection(db, "vacantes"), {
                   title: newTitle, company: newCompany, address: newAddress || "Centro",
                   salary: newSalary, schedule: newSchedule, description: newDesc,
-                  lat: userCoords.lat, lng: userCoords.lng, status: 'active', createdAt: serverTimestamp()
+                  lat: userCoords.lat, lng: userCoords.lng, status: 'active',
+                  ownerId: currentUserId, createdAt: serverTimestamp()
                 });
-                alert('¡Vacante publicada con éxito!');
+                alert('¡Vacante publicada con éxito en el radar!');
                 navigateTo('explore', 'seeker');
               } catch (err) { console.error(err); }
             }} className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-3 shadow-md">
-              <input type="text" placeholder="Título del Puesto" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" required />
-              <input type="text" placeholder="Nombre del Negocio" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" required />
-              <input type="text" placeholder="Sueldo (Ej. $1,500 sem.)" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
-              <input type="text" placeholder="Horario" value={newSchedule} onChange={(e) => setNewSchedule(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
-              <textarea placeholder="Descripción..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" required />
-              <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-lg shadow-indigo-200 dark:shadow-none">Publicar Vacante</button>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Título del Puesto *</label>
+                <input type="text" placeholder="Ej. Barista / Mesero Principal" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" required />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Nombre del Negocio *</label>
+                <input type="text" placeholder="Ej. Cafetería El Portal" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500" required />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Sueldo / Pago</label>
+                  <input type="text" placeholder="Ej. $1,600 sem." value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Horario</label>
+                  <input type="text" placeholder="Ej. Turno Matutino" value={newSchedule} onChange={(e) => setNewSchedule(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Ubicación GPS</label>
+                <button 
+                  type="button" 
+                  onClick={() => setShowMapPicker(true)} 
+                  className="w-full bg-slate-100 dark:bg-slate-800 text-indigo-600 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2"
+                >
+                  <MapPin size={14} />
+                  <span>{newAddress || "Seleccionar ubicación en el mapa 📍"}</span>
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Descripción detallada *</label>
+                <textarea rows="3" placeholder="Requisitos, actividades y beneficios..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" required />
+              </div>
+
+              <button type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-lg shadow-indigo-200 dark:shadow-none active:scale-98 transition">
+                Publicar Vacante
+              </button>
             </form>
           </div>
         )}
 
-        {/* PÁGINA 5: PERFIL EXTENDIDO (TIPO TINDER) */}
+        {/* PÁGINA 5: PERFIL EXTENDIDO PARA BUSCADORES */}
         {currentPage === 'profile' && (
           <div className="p-4 space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="font-black text-lg">Mi Perfil y Preferencias</h2>
+              <h2 className="font-black text-lg">Mi Perfil Profesional / CV</h2>
               {profileSavedNotice && (
                 <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
                   ✓ Guardado
@@ -1184,15 +1234,15 @@ export default function App() {
 
             <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4 shadow-md">
               
-              {/* EDICIÓN DE FOTO DE AVATAR Y PORTADA */}
+              {/* EDICIÓN FOTO Y PORTADA */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase text-slate-400">Fotos de Perfil y Portada</label>
+                <label className="text-[10px] font-bold uppercase text-slate-400">Fotografías de Perfil</label>
                 
-                <div className="h-28 bg-slate-100 dark:bg-slate-800 rounded-2xl relative overflow-hidden border">
+                <div className="h-28 bg-slate-100 dark:bg-slate-800 rounded-2xl relative overflow-hidden border border-slate-200 dark:border-slate-700">
                   {candidateProfile.banner ? (
                     <img src={candidateProfile.banner} alt="Portada" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">Sin portada</div>
+                    <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-semibold">Cargar foto de portada</div>
                   )}
 
                   <label className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full cursor-pointer hover:bg-black/70 transition">
@@ -1226,7 +1276,7 @@ export default function App() {
                     <input type="text" value={candidateProfile.age} onChange={(e) => setCandidateProfile({...candidateProfile, age: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-slate-400">Puesto Buscado</label>
+                    <label className="text-[10px] font-bold uppercase text-slate-400">Puesto Pretendido</label>
                     <input type="text" value={candidateProfile.desiredRole} onChange={(e) => setCandidateProfile({...candidateProfile, desiredRole: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
                   </div>
                 </div>
@@ -1243,17 +1293,17 @@ export default function App() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Habilidades Clave</label>
-                  <input type="text" value={candidateProfile.skills} onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Habilidades Clave (separadas por coma)</label>
+                  <input type="text" value={candidateProfile.skillsText || ''} onChange={(e) => setCandidateProfile({...candidateProfile, skillsText: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Sobre Mí (Bio)</label>
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Sobre mí (Bio)</label>
                   <textarea rows="3" value={candidateProfile.bio} onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none" />
                 </div>
 
                 <button onClick={handleSaveProfile} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl text-xs shadow-lg shadow-indigo-200 dark:shadow-none transition active:scale-98">
-                  {isSavingProfile ? 'Guardando...' : 'Guardar Perfil'}
+                  {isSavingProfile ? 'Guardando...' : 'Guardar Perfil / CV'}
                 </button>
               </div>
 
@@ -1261,7 +1311,7 @@ export default function App() {
           </div>
         )}
 
-        {/* PÁGINA 6: CONFIGURACIÓN Y TEMAS */}
+        {/* PÁGINA 6: CONFIGURACIÓN */}
         {currentPage === 'settings' && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-lg">Configuración de la App</h2>
@@ -1271,8 +1321,8 @@ export default function App() {
                 <span className="text-xs font-bold text-slate-500 uppercase">Tema de Apariencia</span>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { id: 'indigo', name: '🟣 Indigo' },
-                    { id: 'dark', name: '🌙 Oscuro' },
+                    { id: 'indigo', name: '🟣 Indigo Pro' },
+                    { id: 'dark', name: '🌙 Modo Oscuro' },
                     { id: 'emerald', name: '🟢 Esmeralda' },
                     { id: 'sunset', name: '🟠 Atardecer' }
                   ].map(t => (
@@ -1298,7 +1348,7 @@ export default function App() {
           <div className="text-center space-y-6 text-white max-w-sm">
             <div className="text-6xl animate-bounce">🎉</div>
             <h2 className="text-3xl font-black">¡Es un Match Real!</h2>
-            <p className="text-xs text-indigo-200">
+            <p className="text-xs text-indigo-200 leading-relaxed">
               Ambas partes han mostrado interés recíproco por <strong className="text-white">{lastMatch.title || lastMatch.name}</strong>.
             </p>
 
@@ -1320,6 +1370,28 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL REPORTE */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl">
+            <h3 className="font-bold text-sm">Reportar Publicación</h3>
+            <select 
+              value={reportReason} 
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl text-xs outline-none"
+            >
+              <option value="🚫 Perfil o empleo falso / fraude">🚫 Perfil o empleo falso / fraude</option>
+              <option value="⚠️ Contenido inapropiado">⚠️ Contenido inapropiado</option>
+              <option value="📩 Spam o acoso">📩 Spam o acoso</option>
+            </select>
+            <div className="flex gap-2">
+              <button onClick={() => setShowReportModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold">Cancelar</button>
+              <button onClick={() => { alert("Reporte enviado"); setShowReportModal(false); }} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-xs font-bold">Enviar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL AUTENTICACIÓN GOOGLE */}
       {showAuthModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
@@ -1330,7 +1402,7 @@ export default function App() {
 
             <div className="text-center space-y-1">
               <h3 className="font-black text-lg">Ingresar a ChambaCerca</h3>
-              <p className="text-xs text-slate-400">Inicia sesión para interactuar y conectar</p>
+              <p className="text-xs text-slate-400">Inicia sesión para guardar tu perfil o dar Likes</p>
             </div>
 
             <button 
@@ -1344,25 +1416,45 @@ export default function App() {
         </div>
       )}
 
-      {/* NAVEGACIÓN INFERIOR (BOTTOM NAV) */}
+      {/* NAVEGACIÓN INFERIOR DINÁMICA SEGÚN ROL */}
       {currentPage !== 'landing' && (
         <nav className="fixed bottom-0 max-w-md w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 flex justify-around py-2.5 z-40">
-          <button onClick={() => navigateTo('explore', userRole)} className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'explore' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
+          
+          <button 
+            onClick={() => navigateTo('explore', userRole)} 
+            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'explore' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}
+          >
             <Search size={18} />
-            <span>Explorar</span>
+            <span>{userRole === 'seeker' ? 'Explorar' : 'Candidatos'}</span>
           </button>
-          <button onClick={() => navigateTo('chat')} className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'chat' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
+
+          <button 
+            onClick={() => navigateTo('chat')} 
+            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'chat' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}
+          >
             <MessageSquare size={18} />
             <span>Mensajes</span>
           </button>
-          <button onClick={() => navigateTo('post-job')} className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'post-job' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
-            <Building size={18} />
-            <span>Publicar</span>
-          </button>
-          <button onClick={() => navigateTo('profile')} className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'profile' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
+
+          {/* SÓLO MOSTRAR 'PUBLICAR' SI EL ROL ES NEGOCIO */}
+          {userRole === 'business' && (
+            <button 
+              onClick={() => navigateTo('post-job')} 
+              className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'post-job' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}
+            >
+              <Building size={18} />
+              <span>Publicar</span>
+            </button>
+          )}
+
+          <button 
+            onClick={() => navigateTo('profile')} 
+            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'profile' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}
+          >
             <User size={18} />
-            <span>Perfil</span>
+            <span>{userRole === 'seeker' ? 'Mi CV' : 'Mi Perfil'}</span>
           </button>
+
         </nav>
       )}
 
