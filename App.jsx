@@ -1,33 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  MapPin, DollarSign, Clock, Heart, X, 
-  MessageSquare, User, Building, Search, 
-  Sliders, Navigation, Camera, Image as ImageIcon, Upload,
-  Check, Save, Loader2,
-  Trash2, CheckCircle, ShieldAlert, Settings, Palette,
-  Lock, Flag, EyeOff, Sparkles, Send, ArrowLeft, LogOut, Mail
-} from 'lucide-react';
-
-// Importaciones de Firebase
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  GoogleAuthProvider,
-  signInWithPopup,
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink,
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
-  signOut 
+  signOut,
+  updateProfile
 } from 'firebase/auth';
-import { 
-  getFirestore, collection, addDoc, onSnapshot, query,
-  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where, getDocs 
-} from 'firebase/firestore';
 
-// Configuración de Firebase
+// ===========================================================================
+// 1. CONFIGURACIÓN E INICIALIZACIÓN DE FIREBASE (API KEY VALIDADA)
+// ===========================================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyB9naI5Ao7-TvszmaZUI1Cia99qvQL_7Iw",
+  apiKey: "AIzaSyCpQ3ybA84pHSrD11KrzBeTEl-wRayZ71k",
   authDomain: "chambacerca-ca0c9.firebaseapp.com",
   projectId: "chambacerca-ca0c9",
   storageBucket: "chambacerca-ca0c9.firebasestorage.app",
@@ -37,1740 +25,1089 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
-// SINTETIZADOR DE SONIDOS NATIVO (Web Audio API)
-const playSound = (type) => {
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-
-    if (type === 'like') {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(400, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.12);
-    } else if (type === 'pass') {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(250, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.1);
-    } else if (type === 'match') {
-      const notes = [523.25, 659.25, 783.99, 1046.50];
-      notes.forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.15, ctx.currentTime + idx * 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.2);
-        osc.start(ctx.currentTime + idx * 0.08);
-        osc.stop(ctx.currentTime + idx * 0.08 + 0.2);
-      });
-    } else if (type === 'click') {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(600, ctx.currentTime);
-      gain.gain.setValueAtTime(0.05, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.05);
-    } else if (type === 'message') {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.16);
-    }
-  } catch (e) {
-    console.log("Audio no disponible", e);
-  }
-};
-
-function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return c.toFixed(1);
-}
-
-const convertFileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = (error) => reject(error);
-  });
-};
-
-const DEMO_CANDIDATES = [
+// ===========================================================================
+// 2. BASE DE DATOS INICIAL DE TRABAJOS Y OFICIOS (MOCK EXTENDIDO)
+// ===========================================================================
+const INITIAL_JOBS_DATABASE = [
   {
-    id: 'cand-1',
-    name: 'Sofía Martínez',
-    age: '21 años',
-    role: 'Atención a Clientes / Barista',
-    skills: 'Manejo de caja, Preparación de café, Trabajo en equipo',
-    bio: 'Estudiante universitaria buscando empleo de medio tiempo. Experiencia previa de 1 año en cafeterías.',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-    banner: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500',
-    lat: 19.4326,
-    lng: -99.1332
+    id: 'job-101',
+    title: 'Reparación Urgente de Fuga de Agua y Plomería',
+    category: 'Plomería',
+    description: 'Se necesita plomero capacitado para reparar tuberia principal de PVC de 1/2 pulgada bajo la tarja de la cocina. Se requiere traer herramienta propia.',
+    pay: '$450 MXN',
+    numericPay: 450,
+    payType: 'Por trabajo',
+    urgency: 'Alta',
+    authorName: 'Carlos Mendoza',
+    authorPhone: '2711234567',
+    authorRating: '4.8 ★',
+    lat: 18.8950,
+    lng: -96.9320,
+    distanceKm: 1.2,
+    timeAgo: 'Hace 15 min',
+    status: 'Abierta',
+    applicantsCount: 3
   },
   {
-    id: 'cand-2',
-    name: 'Carlos Mendoza',
-    age: '19 años',
-    role: 'Auxiliar General / Repartidor',
-    skills: 'Licencia de conducir, Puntualidad, Proactivo',
-    bio: 'Disponibilidad inmediata para turnos matutinos o vespertinos. Excelente actitud de servicio.',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    banner: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500',
-    lat: 19.4350,
-    lng: -99.1400
+    id: 'job-102',
+    title: 'Mantenimiento e Instalación Eléctrica Residencial',
+    category: 'Electricidad',
+    description: 'Instalación de 4 contactos dobles, 2 apagadores sencillos y revisión del centro de carga principal por cortocircuito ligero en recámara.',
+    pay: '$800 MXN',
+    numericPay: 800,
+    payType: 'Por trabajo',
+    urgency: 'Media',
+    authorName: 'Elena Torres',
+    authorPhone: '2719876543',
+    authorRating: '4.9 ★',
+    lat: 18.8910,
+    lng: -96.9280,
+    distanceKm: 2.5,
+    timeAgo: 'Hace 1 hora',
+    status: 'Abierta',
+    applicantsCount: 1
+  },
+  {
+    id: 'job-103',
+    title: 'Pintor para Fachada Exterior de Casa de 2 Pisos',
+    category: 'Pintura',
+    description: 'Se requiere pintor con experiencia comprobable en fachada exterior. Nosotros proporcionamos la pintura vinílica, brochas, rodillos y andamio.',
+    pay: '$1,200 MXN',
+    numericPay: 1200,
+    payType: 'Por día',
+    urgency: 'Baja',
+    authorName: 'Roberto Gómez',
+    authorPhone: '2715554433',
+    authorRating: '4.7 ★',
+    lat: 18.8990,
+    lng: -96.9400,
+    distanceKm: 4.1,
+    timeAgo: 'Hace 3 horas',
+    status: 'Abierta',
+    applicantsCount: 5
+  },
+  {
+    id: 'job-104',
+    title: 'Corte de Césped, Mantenimiento y Limpieza de Jardín',
+    category: 'Jardinería',
+    description: 'Jardín frontal pequeño de 50m2. Incluye podar césped, retirar maleza y embolsar residuos verdes para recolección.',
+    pay: '$350 MXN',
+    numericPay: 350,
+    payType: 'Por trabajo',
+    urgency: 'Baja',
+    authorName: 'Ana Lucía Juárez',
+    authorPhone: '2714443322',
+    authorRating: '5.0 ★',
+    lat: 18.8870,
+    lng: -96.9350,
+    distanceKm: 0.8,
+    timeAgo: 'Hace 5 horas',
+    status: 'Abierta',
+    applicantsCount: 2
+  },
+  {
+    id: 'job-105',
+    title: 'Construcción de Bardita de Bloque y Cimentación',
+    category: 'Albañilería',
+    description: 'Levantar barda de 3 metros de largo por 2 metros de alto. Se requiere albañil con ayudante. Material ya disponible en obra.',
+    pay: '$2,500 MXN',
+    numericPay: 2500,
+    payType: 'Por destajo',
+    urgency: 'Alta',
+    authorName: 'Ing. Fernando Silva',
+    authorPhone: '2718889900',
+    authorRating: '4.6 ★',
+    lat: 18.9020,
+    lng: -96.9210,
+    distanceKm: 5.8,
+    timeAgo: 'Hace 1 día',
+    status: 'Abierta',
+    applicantsCount: 8
+  },
+  {
+    id: 'job-106',
+    title: 'Limpieza Profunda de Casa y Lavado de Ventanas',
+    category: 'Limpieza',
+    description: 'Aseo general de departamento de 2 recámaras, 1 baño, sala y cocina. Incluye limpieza de cristales y sacudido de muebles.',
+    pay: '$500 MXN',
+    numericPay: 500,
+    payType: 'Por día',
+    urgency: 'Media',
+    authorName: 'Patricia Morales',
+    authorPhone: '2713332211',
+    authorRating: '4.9 ★',
+    lat: 18.8930,
+    lng: -96.9380,
+    distanceKm: 1.9,
+    timeAgo: 'Hace 1 día',
+    status: 'Abierta',
+    applicantsCount: 4
   }
 ];
 
-// MODAL MAPA INTERACTIVO (LEAFLET)
-const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
-  const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const markerRef = useRef(null);
+const CATEGORIES_LIST = [
+  'Todas',
+  'Plomería',
+  'Electricidad',
+  'Pintura',
+  'Jardinería',
+  'Albañilería',
+  'Limpieza',
+  'Carpintería',
+  'Mecánica',
+  'Otros'
+];
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCoords, setSelectedCoords] = useState(
-    initialCoords || userCoords || { lat: 19.4326, lng: -99.1332 }
-  );
-  const [addressName, setAddressName] = useState('Cargando dirección...');
-
-  useEffect(() => {
-    const loadLeaflet = async () => {
-      if (!window.L) {
-        const css = document.createElement('link');
-        css.rel = 'stylesheet';
-        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(css);
-
-        await new Promise((resolve) => {
-          const script = document.createElement('script');
-          script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-          script.onload = resolve;
-          document.body.appendChild(script);
-        });
-      }
-      initMap();
-    };
-
-    loadLeaflet();
-  }, []);
-
-  const reverseGeocode = async (lat, lng) => {
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-      const data = await res.json();
-      if (data && data.display_name) {
-        const parts = data.display_name.split(',');
-        setAddressName(parts.slice(0, 3).join(','));
-      } else {
-        setAddressName(`Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
-      }
-    } catch {
-      setAddressName(`Ubicación seleccionada (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
-    }
-  };
-
-  const initMap = () => {
-    if (!mapContainerRef.current || mapInstanceRef.current || !window.L) return;
-
-    const L = window.L;
-    const map = L.map(mapContainerRef.current).setView([selectedCoords.lat, selectedCoords.lng], 16);
-    mapInstanceRef.current = map;
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
-
-    const customIcon = L.divIcon({
-      className: 'custom-pin',
-      html: `<div style="background-color: #4f46e5; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">📍</div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12]
-    });
-
-    const marker = L.marker([selectedCoords.lat, selectedCoords.lng], { draggable: true, icon: customIcon }).addTo(map);
-    markerRef.current = marker;
-
-    reverseGeocode(selectedCoords.lat, selectedCoords.lng);
-
-    marker.on('dragend', (e) => {
-      const pos = e.target.getLatLng();
-      setSelectedCoords({ lat: pos.lat, lng: pos.lng });
-      reverseGeocode(pos.lat, pos.lng);
-    });
-
-    map.on('click', (e) => {
-      const { lat, lng } = e.latlng;
-      marker.setLatLng([lat, lng]);
-      setSelectedCoords({ lat, lng });
-      reverseGeocode(lat, lng);
-    });
-  };
-
-  const handleSearchOnMap = async (e) => {
-    e.preventDefault();
-    if (!searchQuery) return;
-
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const newLat = parseFloat(data[0].lat);
-        const newLng = parseFloat(data[0].lon);
-
-        setSelectedCoords({ lat: newLat, lng: newLng });
-        setAddressName(data[0].display_name);
-
-        if (mapInstanceRef.current && markerRef.current) {
-          mapInstanceRef.current.setView([newLat, newLng], 16);
-          markerRef.current.setLatLng([newLat, newLng]);
-        }
-      } else {
-        alert("Ubicación no encontrada.");
-      }
-    } catch {
-      alert("Error al buscar dirección.");
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col justify-end sm:justify-center p-0 sm:p-4">
-      <div className="bg-white w-full max-w-md mx-auto rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh]">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <div>
-            <h3 className="font-bold text-slate-800 text-sm">Selecciona la ubicación exacta</h3>
-            <p className="text-[10px] text-slate-500">Haz clic en el mapa o arrastra el pin</p>
-          </div>
-          <button onClick={onClose} className="p-2 bg-slate-200 text-slate-600 rounded-full">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="p-3 bg-white border-b border-slate-100 space-y-2">
-          <form onSubmit={handleSearchOnMap} className="flex gap-2">
-            <input 
-              type="text" 
-              placeholder="Buscar calle o colonia..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-slate-100 px-3 py-2 rounded-xl text-xs outline-none"
-            />
-            <button type="submit" className="bg-indigo-600 text-white px-3 py-2 rounded-xl text-xs font-bold">
-              Buscar
-            </button>
-          </form>
-        </div>
-
-        <div className="flex-1 relative w-full bg-slate-100">
-          <div ref={mapContainerRef} className="w-full h-full z-10"></div>
-        </div>
-
-        <div className="p-4 bg-white border-t border-slate-100 space-y-3">
-          <div className="bg-slate-50 p-2.5 rounded-2xl border flex items-start space-x-2">
-            <MapPin size={18} className="text-indigo-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Dirección seleccionada:</p>
-              <p className="text-xs font-medium text-slate-700">{addressName}</p>
-            </div>
-          </div>
-
-          <button 
-            type="button"
-            onClick={() => onConfirm({ coords: selectedCoords, address: addressName })}
-            className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-lg"
-          >
-            <Check size={16} />
-            <span>Confirmar esta ubicación</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
+// ===========================================================================
+// 3. COMPONENTE PRINCIPAL APP
+// ===========================================================================
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState('');
-
-  const [currentPage, setCurrentPage] = useState('landing'); 
-  const [userRole, setUserRole] = useState('seeker'); 
-  const [theme, setTheme] = useState('indigo');
-
-  const [jobs, setJobs] = useState([]);
-  const [candidates, setCandidates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Estados Globales de Autenticación
+  const [user, setUser] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
   
-  const [jobIndex, setJobIndex] = useState(0);
-  const [candidateIndex, setCandidateIndex] = useState(0);
-  
-  const [matches, setMatches] = useState([]);
-  const [showMatchModal, setShowMatchModal] = useState(false);
-  const [lastMatch, setLastMatch] = useState(null);
-
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [profileSavedNotice, setProfileSavedNotice] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-
-  const [userCoords, setUserCoords] = useState(null);
-  const [geoStatus, setGeoStatus] = useState('Solicitando GPS...');
-
-  // INTERVALO DE DISTANCIA (MÍNIMO Y MÁXIMO EN KM)
-  const [minDistanceFilter, setMinDistanceFilter] = useState(0); 
-  const [maxDistanceFilter, setMaxDistanceFilter] = useState(20); 
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
-
-  const [activeChat, setActiveChat] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [newMessageText, setNewMessageText] = useState('');
-
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportTarget, setReportTarget] = useState(null);
-  const [reportReason, setReportReason] = useState('🚫 Perfil o empleo falso / fraude');
-
-  // AUTENTICACIÓN: MODAL VISIBLE DE FORMA AUTOMÁTICA AL ABRIR LA APP
-  const [showAuthModal, setShowAuthModal] = useState(true);
+  // Estados del Formulario Login/Registro
   const [emailInput, setEmailInput] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
 
-  // Perfil Candidato
-  const [candidateProfile, setCandidateProfile] = useState({
-    name: '',
-    age: '',
-    role: '',
-    skills: '',
-    bio: '',
-    avatar: null,
-    banner: null
+  // Estados de Navegación de Vistas
+  const [currentTab, setCurrentTab] = useState('feed'); // 'feed' | 'map' | 'publish' | 'my-jobs' | 'profile'
+  
+  // Estados de Ubicación GPS
+  const [userCoords, setUserCoords] = useState({ lat: 18.8939, lng: -96.9356 }); // Coordenadas Córdoba, Ver.
+  const [gpsStatusText, setGpsStatusText] = useState('Obteniendo ubicación GPS...');
+  const [hasGpsPermission, setHasGpsPermission] = useState(false);
+
+  // Estados de Filtro y Radar
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedCat, setSelectedCat] = useState('Todas');
+  const [radarDistanceKm, setRadarDistanceKm] = useState(15);
+  const [filterUrgency, setFilterUrgency] = useState('Todas');
+  const [sortByPay, setSortByPay] = useState('none'); // 'none' | 'asc' | 'desc'
+
+  // Estados de Gestión de Datos
+  const [jobsList, setJobsList] = useState(INITIAL_JOBS_DATABASE);
+  const [selectedJobModal, setSelectedJobModal] = useState(null);
+  const [toastNotification, setToastNotification] = useState(null);
+
+  // Estados para Publicar Trabajo
+  const [publishForm, setPublishForm] = useState({
+    title: '',
+    category: 'Plomería',
+    description: '',
+    payAmount: '',
+    payType: 'Por trabajo',
+    urgency: 'Media',
+    phone: ''
   });
 
-  const [newTitle, setNewTitle] = useState('');
-  const [newCompany, setNewCompany] = useState('');
-  const [newAddress, setNewAddress] = useState('');
-  const [selectedCoords, setSelectedCoords] = useState(null);
-  const [showMapPicker, setShowMapPicker] = useState(false);
+  // ---------------------------------------------------------------------------
+  // EFECTO: Escuchar Estado de Autenticación y Solicitar GPS al inicio
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+    });
 
-  const [newSalary, setNewSalary] = useState('');
-  const [newSchedule, setNewSchedule] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [businessLogo, setBusinessLogo] = useState(null);
-
-  // GEOLOCALIZACIÓN NATIVA CON SOLICITUD DE PERMISOS ACTIVA
-  const requestGPSLocation = () => {
-    setGeoStatus('Obteniendo ubicación GPS...');
+    // Petición automática de Geolocalización
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setUserCoords(coords);
-          setSelectedCoords(coords);
-          setGeoStatus('GPS Activo 📍');
+        (position) => {
+          setUserCoords({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+          setGpsStatusText('Ubicación obtenida en tiempo real');
+          setHasGpsPermission(true);
         },
-        (err) => {
-          console.warn("Error GPS:", err);
-          setGeoStatus('Ubicación no permitida ⚠️');
+        (error) => {
+          console.warn("Geolocalización rechazada:", error);
+          setGpsStatusText('Ubicación aproximada predeterminada');
+          setHasGpsPermission(false);
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      setGeoStatus('GPS no soportado');
-    }
-  };
-
-  useEffect(() => {
-    requestGPSLocation();
-  }, []);
-
-  // VERIFICAR ENLACE MÁGICO DE CORREO Y SESIÓN DE USUARIO
-  useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      let email = window.localStorage.getItem('emailForSignIn');
-      if (!email) {
-        email = window.prompt('Por favor ingresa tu correo para confirmar el acceso:');
-      }
-      if (email) {
-        setAuthLoading(true);
-        signInWithEmailLink(auth, email, window.location.href)
-          .then((result) => {
-            window.localStorage.removeItem('emailForSignIn');
-            setCurrentUser(result.user);
-            setCurrentUserId(result.user.uid);
-            setShowAuthModal(false);
-            setAuthLoading(false);
-            alert("¡Correo verificado con éxito! Bienvenido a ChambaCerca.");
-          })
-          .catch((error) => {
-            console.error("Error al ingresar con link:", error);
-            setAuthLoading(false);
-            alert("El enlace ha expirado o es inválido.");
-          });
-      }
+      setGpsStatusText('GPS no soportado en este navegador');
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setCurrentUser(user);
-        setCurrentUserId(user.uid);
-        setShowAuthModal(false); // Ocultar modal si ya hay sesión iniciada
-      } else {
-        setCurrentUser(null);
-        setCurrentUserId('');
-      }
-    });
     return () => unsubscribe();
   }, []);
 
-  const navigateTo = (page, role = userRole) => {
-    playSound('click');
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setUserRole(role);
-      setCurrentPage(page);
-      setJobIndex(0);
-      setCandidateIndex(0);
-      setIsTransitioning(false);
-    }, 250);
-  };
+  // ---------------------------------------------------------------------------
+  // MANEJADORES DE AUTENTICACIÓN
+  // ---------------------------------------------------------------------------
+  const handleEmailAuthentication = async (e) => {
+    e.preventDefault();
+    setAuthError('');
 
-  // CARGAR MI PERFIL DESDE FIREBASE
-  useEffect(() => {
-    if (!currentUserId) return;
-    const fetchProfile = async () => {
-      try {
-        const docRef = doc(db, "perfiles", currentUserId);
-        const docSnap = await getDoc(docRef);
+    if (!emailInput || !passwordInput) {
+      setAuthError('Por favor completa todos los campos requeridos.');
+      return;
+    }
 
-        if (docSnap.exists()) {
-          setCandidateProfile(docSnap.data());
-        } else {
-          const initialData = {
-            name: currentUser?.displayName || 'Usuario ChambaCerca',
-            age: '20 años',
-            role: 'Buscando Empleo',
-            skills: 'Atención al cliente, Puntualidad',
-            bio: 'Perfil verificado en ChambaCerca.',
-            avatar: currentUser?.photoURL || null,
-            banner: null
-          };
-          await setDoc(docRef, initialData);
-          setCandidateProfile(initialData);
+    try {
+      if (isSignUpMode) {
+        const userCredential = await createUserWithEmailAndPassword(auth, emailInput, passwordInput);
+        if (nameInput) {
+          await updateProfile(userCredential.user, { displayName: nameInput });
         }
-      } catch (err) {
-        console.error("Error al cargar perfil:", err);
+        showToast('¡Cuenta creada con éxito! Bienvenido a ChambaCerca.');
+      } else {
+        await signInWithEmailAndPassword(auth, emailInput, passwordInput);
+        showToast('¡Sesión iniciada correctamente!');
       }
+    } catch (err) {
+      console.error("Error Auth Firebase:", err);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setAuthError('Correo o contraseña incorrectos.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setAuthError('Este correo electrónico ya está registrado.');
+      } else if (err.code === 'auth/weak-password') {
+        setAuthError('La contraseña debe tener al menos 6 caracteres.');
+      } else {
+        setAuthError('Error de autenticación: ' + err.message);
+      }
+    }
+  };
+
+  const handleGoogleAuthentication = async () => {
+    setAuthError('');
+    try {
+      await signInWithPopup(auth, googleProvider);
+      showToast('¡Sesión iniciada con Google!');
+    } catch (err) {
+      console.error("Error Google Auth:", err);
+      setAuthError('Error al autenticar con Google: ' + err.message);
+    }
+  };
+
+  const handleSignOutUser = async () => {
+    try {
+      await signOut(auth);
+      showToast('Sesión cerrada correctamente');
+      setCurrentTab('feed');
+    } catch (err) {
+      console.error("Error al salir:", err);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // MANEJADOR DE PUBLICACIÓN DE NUEVAS CHAMBAS
+  // ---------------------------------------------------------------------------
+  const handlePublishJobSubmit = (e) => {
+    e.preventDefault();
+    
+    if (!publishForm.title || !publishForm.description || !publishForm.payAmount) {
+      showToast('Por favor completa los campos obligatorios del formulario');
+      return;
+    }
+
+    const newCreatedJob = {
+      id: `job-${Date.now()}`,
+      title: publishForm.title,
+      category: publishForm.category,
+      description: publishForm.description,
+      pay: `$${publishForm.payAmount} MXN`,
+      numericPay: parseFloat(publishForm.payAmount) || 0,
+      payType: publishForm.payType,
+      urgency: publishForm.urgency,
+      authorName: user?.displayName || user?.email?.split('@')[0] || 'Usuario ChambaCerca',
+      authorPhone: publishForm.phone || '2710000000',
+      authorRating: '5.0 ★',
+      lat: userCoords.lat + (Math.random() - 0.5) * 0.015,
+      lng: userCoords.lng + (Math.random() - 0.5) * 0.015,
+      distanceKm: parseFloat((Math.random() * 2 + 0.2).toFixed(1)),
+      timeAgo: 'Hace unos momentos',
+      status: 'Abierta',
+      applicantsCount: 0,
+      isOwner: true
     };
 
-    fetchProfile();
-  }, [currentUserId, currentUser]);
-
-  // ESCUCHAR PERFILES EN TIEMPO REAL
-  useEffect(() => {
-    const q = query(collection(db, "perfiles"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const realProfiles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      realProfiles.sort((a, b) => {
-        const timeA = a.updatedAt?.seconds || 0;
-        const timeB = b.updatedAt?.seconds || 0;
-        return timeB - timeA;
-      });
-
-      const combined = [
-        ...realProfiles,
-        ...DEMO_CANDIDATES.filter(demo => !realProfiles.some(real => real.id === demo.id))
-      ];
-
-      setCandidates(combined);
-    }, (err) => {
-      console.error("Error al obtener candidatos:", err);
-      setCandidates(DEMO_CANDIDATES);
+    setJobsList([newCreatedJob, ...jobsList]);
+    setPublishForm({
+      title: '',
+      category: 'Plomería',
+      description: '',
+      payAmount: '',
+      payType: 'Por trabajo',
+      urgency: 'Media',
+      phone: ''
     });
-
-    return () => unsubscribe();
-  }, []);
-
-  // MATCHES EN TIEMPO REAL
-  useEffect(() => {
-    if (!currentUserId) return;
-    const q = query(collection(db, "matches"), where("userId", "==", currentUserId));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const matchDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data().item, matchDocId: d.id }));
-      setMatches(matchDocs);
-    }, (err) => console.error("Error al obtener matches:", err));
-
-    return () => unsubscribe();
-  }, [currentUserId]);
-
-  // ESCUCHAR VACANTES
-  useEffect(() => {
-    const q = query(collection(db, "vacantes"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const jobList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      jobList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setJobs(jobList);
-      setLoading(false);
-    }, (err) => {
-      console.error(err);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // ESCUCHAR CHAT ACTIVO
-  useEffect(() => {
-    if (!activeChat) return;
-
-    const chatId = activeChat.matchDocId || activeChat.id;
-    const q = query(
-      collection(db, "chats", chatId, "mensajes")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      msgs.sort((a,b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-      setChatMessages(msgs);
-    }, (err) => {
-      console.error("Error al obtener mensajes:", err);
-    });
-
-    return () => unsubscribe();
-  }, [activeChat]);
-
-  // INICIO DE SESIÓN CON GOOGLE (GMAIL)
-  const handleGoogleSignIn = async () => {
-    setAuthLoading(true);
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      setCurrentUser(result.user);
-      setCurrentUserId(result.user.uid);
-      setShowAuthModal(false);
-      setAuthLoading(false);
-      playSound('match');
-    } catch (error) {
-      console.error("Error Google Auth:", error);
-      alert("Error al iniciar sesión con Google.");
-      setAuthLoading(false);
-    }
+    
+    showToast('¡Chamba publicada con éxito en el radar!');
+    setCurrentTab('feed');
   };
 
-  // ENVIAR ENLACE MÁGICO AL CORREO
-  const handleSendMagicLink = async (e) => {
-    e.preventDefault();
-    if (!emailInput) return;
-
-    setAuthLoading(true);
-    const actionCodeSettings = {
-      url: window.location.href,
-      handleCodeInApp: true,
-    };
-
-    try {
-      await sendSignInLinkToEmail(auth, emailInput, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', emailInput);
-      setEmailSent(true);
-      setAuthLoading(false);
-      playSound('message');
-    } catch (error) {
-      console.error("Error enlace mágico:", error);
-      alert("No se pudo enviar el enlace al correo.");
-      setAuthLoading(false);
-    }
+  // ---------------------------------------------------------------------------
+  // SISTEMA DE NOTIFICACIONES TOAST
+  // ---------------------------------------------------------------------------
+  const showToast = (message) => {
+    setToastNotification(message);
+    setTimeout(() => {
+      setToastNotification(null);
+    }, 4000);
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    setCurrentUser(null);
-    setCurrentUserId('');
-    playSound('click');
-    setShowAuthModal(true);
-  };
+  // ---------------------------------------------------------------------------
+  // ALGORITMO DE FILTRADO Y ORDENAMIENTO DINÁMICO DE TRABAJOS
+  // ---------------------------------------------------------------------------
+  const processedJobsList = jobsList.filter(job => {
+    const matchesCategory = selectedCat === 'Todas' || job.category === selectedCat;
+    const matchesSearch = job.title.toLowerCase().includes(searchKeyword.toLowerCase()) ||
+                          job.description.toLowerCase().includes(searchKeyword.toLowerCase()) ||
+                          job.authorName.toLowerCase().includes(searchKeyword.toLowerCase());
+    const matchesDistance = job.distanceKm <= radarDistanceKm;
+    const matchesUrgency = filterUrgency === 'Todas' || job.urgency === filterUrgency;
 
-  // GUARDAR PERFIL EN FIRESTORE
-  const handleSaveProfile = async () => {
-    if (!currentUser) {
-      setShowAuthModal(true);
-      return;
-    }
-    playSound('click');
-    setIsSavingProfile(true);
-    try {
-      const docRef = doc(db, "perfiles", currentUserId);
-      const dataToSave = {
-        ...candidateProfile,
-        updatedAt: serverTimestamp()
-      };
-      await setDoc(docRef, dataToSave, { merge: true });
-
-      setIsSavingProfile(false);
-      setProfileSavedNotice(true);
-      setTimeout(() => setProfileSavedNotice(false), 3000);
-    } catch (err) {
-      console.error("Error al guardar perfil:", err);
-      setIsSavingProfile(false);
-      alert(`Error al guardar perfil: ${err.message}`);
-    }
-  };
-
-  // SISTEMA DE LIKE Y MATCH
-  const handleLike = async (item) => {
-    if (!currentUser) {
-      setShowAuthModal(true);
-      return;
-    }
-
-    playSound('like');
-    const targetUserId = userRole === 'seeker' ? (item.ownerId || item.id) : item.id;
-
-    try {
-      await addDoc(collection(db, "likes"), {
-        fromUserId: currentUserId,
-        toUserId: targetUserId,
-        createdAt: serverTimestamp()
-      });
-
-      const reciprocalQuery = query(
-        collection(db, "likes"),
-        where("fromUserId", "==", targetUserId),
-        where("toUserId", "==", currentUserId)
-      );
-
-      const reciprocalSnap = await getDocs(reciprocalQuery);
-
-      if (!reciprocalSnap.empty) {
-        setLastMatch(item);
-        setShowMatchModal(true);
-        playSound('match');
-
-        await addDoc(collection(db, "matches"), {
-          userId: currentUserId,
-          item: item,
-          role: userRole,
-          createdAt: serverTimestamp()
-        });
-
-        await addDoc(collection(db, "matches"), {
-          userId: targetUserId,
-          item: candidateProfile,
-          role: userRole === 'seeker' ? 'business' : 'seeker',
-          createdAt: serverTimestamp()
-        });
-      }
-    } catch (err) {
-      console.error("Error al procesar Like/Match:", err);
-    }
-
-    if (userRole === 'seeker') setJobIndex(jobIndex + 1);
-    else setCandidateIndex(candidateIndex + 1);
-  };
-
-  const handlePass = () => {
-    playSound('pass');
-    if (userRole === 'seeker') setJobIndex(jobIndex + 1);
-    else setCandidateIndex(candidateIndex + 1);
-  };
-
-  // ENVIAR MENSAJE
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessageText.trim() || !activeChat || !currentUser) return;
-
-    const textToSend = newMessageText;
-    setNewMessageText('');
-    playSound('message');
-
-    const chatId = activeChat.matchDocId || activeChat.id;
-
-    try {
-      await addDoc(collection(db, "chats", chatId, "mensajes"), {
-        senderId: currentUserId,
-        text: textToSend,
-        createdAt: serverTimestamp()
-      });
-    } catch (err) {
-      console.error("Error al enviar mensaje:", err);
-    }
-  };
-
-  const handleToggleJobStatus = async (jobId, currentStatus) => {
-    playSound('click');
-    const newStatus = currentStatus === 'filled' ? 'active' : 'filled';
-    try {
-      await updateDoc(doc(db, "vacantes", jobId), { status: newStatus });
-    } catch (err) {
-      alert("Error al actualizar la vacante");
-    }
-  };
-
-  const handleDeleteJob = async (jobId) => {
-    playSound('pass');
-    if (confirm("¿Seguro que deseas eliminar esta vacante permanentemente?")) {
-      try {
-        await deleteDoc(doc(db, "vacantes", jobId));
-      } catch (err) {
-        alert("Error al eliminar la vacante");
-      }
-    }
-  };
-
-  const handleProfileImageUpload = async (e, type) => {
-    const file = e.target.files[0];
-    if (file) {
-      const base64 = await convertFileToBase64(file);
-      setCandidateProfile(prev => ({ ...prev, [type]: base64 }));
-    }
-  };
-
-  const handleBusinessLogoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const base64 = await convertFileToBase64(file);
-      setBusinessLogo(base64);
-    }
-  };
-
-  const handleConfirmLocation = ({ coords, address }) => {
-    setSelectedCoords(coords);
-    setNewAddress(address);
-    setShowMapPicker(false);
-  };
-
-  const handlePostJob = async (e) => {
-    e.preventDefault();
-    if (!currentUser) {
-      setShowAuthModal(true);
-      return;
-    }
-    if (!selectedCoords) {
-      alert("Por favor selecciona la ubicación en el mapa.");
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, "vacantes"), {
-        title: newTitle,
-        company: newCompany,
-        address: newAddress || "Ubicación confirmada",
-        salary: newSalary,
-        schedule: newSchedule,
-        description: newDesc,
-        lat: selectedCoords.lat,
-        lng: selectedCoords.lng,
-        logo: businessLogo || null,
-        ownerId: currentUserId,
-        status: 'active',
-        createdAt: serverTimestamp()
-      });
-
-      setNewTitle(''); setNewCompany(''); setNewAddress('');
-      setNewSalary(''); setNewSchedule(''); setNewDesc('');
-      setBusinessLogo(null);
-
-      playSound('match');
-      alert('¡Vacante publicada exitosamente!');
-      navigateTo('explore', 'seeker');
-    } catch (err) {
-      console.error(err);
-      alert('Error al publicar vacante.');
-    }
-  };
-
-  const handleReportSubmit = async () => {
-    if (!reportTarget) return;
-
-    try {
-      await addDoc(collection(db, "reportes"), {
-        targetId: reportTarget.id,
-        targetTitle: reportTarget.title || reportTarget.name || 'Sin nombre',
-        targetType: userRole === 'seeker' ? 'vacante' : 'candidato',
-        reason: reportReason,
-        reporterId: currentUserId || 'anonimo',
-        status: 'pendiente',
-        createdAt: serverTimestamp()
-      });
-
-      playSound('click');
-      alert("🚩 Reporte registrado. El equipo revisará esta alerta.");
-      setShowReportModal(false);
-    } catch (err) {
-      console.error("Error al reportar:", err);
-      alert("No se pudo enviar el reporte.");
-    }
-  };
-
-  // FILTRADO DE DISTANCIA ESTRICTO CON RANGO MÍNIMO Y MÁXIMO
-  const filteredJobs = jobs.filter(job => {
-    if (job.status === 'filled') return false;
-    if (!userCoords || !job.lat || !job.lng) return true;
-    const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, job.lat, job.lng);
-    if (dist === null) return true;
-    const distNum = parseFloat(dist);
-    return distNum >= minDistanceFilter && distNum <= maxDistanceFilter;
+    return matchesCategory && matchesSearch && matchesDistance && matchesUrgency;
+  }).sort((a, b) => {
+    if (sortByPay === 'asc') return a.numericPay - b.numericPay;
+    if (sortByPay === 'desc') return b.numericPay - a.numericPay;
+    return 0;
   });
 
-  const filteredCandidates = candidates.filter(cand => {
-    if (!userCoords || !cand.lat || !cand.lng) return true;
-    const dist = calculateDistanceInKm(userCoords.lat, userCoords.lng, cand.lat, cand.lng);
-    if (dist === null) return true;
-    const distNum = parseFloat(dist);
-    return distNum >= minDistanceFilter && distNum <= maxDistanceFilter;
-  });
-
-  const myPostedJobs = jobs.filter(job => job.ownerId === currentUserId);
-
-  const getThemeClasses = () => {
-    switch (theme) {
-      case 'dark':
-        return 'bg-slate-950 text-slate-100';
-      case 'emerald':
-        return 'bg-emerald-50 text-slate-800';
-      case 'sunset':
-        return 'bg-amber-50 text-slate-800';
-      default:
-        return 'bg-slate-50 text-slate-800';
-    }
-  };
-
-  const getCardClasses = () => {
-    if (theme === 'dark') return 'bg-slate-900 border-slate-800 text-white';
-    return 'bg-white border-slate-100 text-slate-800';
-  };
-
-  return (
-    <div className={`max-w-md mx-auto min-h-screen flex flex-col font-sans shadow-2xl relative overflow-hidden transition-colors duration-300 ${getThemeClasses()}`}>
-
-      {showMapPicker && (
-        <MapPickerModal 
-          initialCoords={selectedCoords}
-          userCoords={userCoords}
-          onConfirm={handleConfirmLocation}
-          onClose={() => setShowMapPicker(false)}
-        />
-      )}
-
-      {/* TRANSICIÓN DINÁMICA */}
-      <div className={`fixed inset-0 pointer-events-none z-50 transition-all duration-300 ease-out flex items-center justify-center ${isTransitioning ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-        <div className="w-96 h-96 bg-indigo-500/30 backdrop-blur-xl rounded-full animate-ping"></div>
+  // Pantalla de Carga Global
+  if (isAuthLoading) {
+    return (
+      <div style={expandedStyles.loadingScreen}>
+        <div style={expandedStyles.spinnerIcon}></div>
+        <h3 style={{ color: '#0070f3', marginTop: '20px', fontFamily: 'sans-serif' }}>ChambaCerca</h3>
+        <p style={{ color: '#666', fontSize: '14px', fontFamily: 'sans-serif' }}>Iniciando servicios y conexión GPS...</p>
       </div>
+    );
+  }
 
-      {currentPage !== 'landing' && !activeChat && (
-        <header className={`${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/80 border-slate-100'} backdrop-blur-md border-b px-4 py-3 flex justify-between items-center sticky top-0 z-30`}>
-          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo('explore', userRole)}>
-            <div className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9 shadow-md shadow-indigo-200">
-              ⚡
-            </div>
-            <span className="font-black text-xl tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-              ChambaCerca
-            </span>
+  // ---------------------------------------------------------------------------
+  // RENDERIZADO 1: PANTALLA DE ACCESO / REGISTRO (SI NO HAY SESIÓN)
+  // ---------------------------------------------------------------------------
+  if (!user) {
+    return (
+      <div style={expandedStyles.authBackground}>
+        <div style={expandedStyles.authContainerBox}>
+          
+          <div style={expandedStyles.authBrandHeader}>
+            <div style={expandedStyles.authLogoCircle}>🛠️</div>
+            <h1 style={expandedStyles.authTitleText}>ChambaCerca</h1>
+            <p style={expandedStyles.authSubtitleText}>
+              Encuentra oficios y contrataciones rápidas cerca de tu ubicación
+            </p>
           </div>
 
-          <div className="flex items-center space-x-2">
-            {!currentUser ? (
-              <button 
-                onClick={() => setShowAuthModal(true)}
-                className="text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-full shadow-sm"
-              >
-                Ingresar
-              </button>
-            ) : (
-              <button 
-                onClick={handleLogout}
-                className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2.5 py-1.5 rounded-full border border-rose-200 flex items-center space-x-1"
-                title="Cerrar sesión"
-              >
-                <LogOut size={12} />
-                <span>Salir</span>
-              </button>
+          {authError && (
+            <div style={expandedStyles.authErrorBanner}>
+              ⚠️ {authError}
+            </div>
+          )}
+
+          <form onSubmit={handleEmailAuthentication} style={expandedStyles.authForm}>
+            {isSignUpMode && (
+              <div style={expandedStyles.inputFieldGroup}>
+                <label style={expandedStyles.inputLabel}>Nombre y Apellidos</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej. Juan Pérez" 
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  style={expandedStyles.textInput}
+                  required={isSignUpMode}
+                />
+              </div>
             )}
 
-            <button 
-              onClick={() => navigateTo('settings')}
-              className={`p-2 rounded-full border transition ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}
-            >
-              <Settings size={16} />
-            </button>
+            <div style={expandedStyles.inputFieldGroup}>
+              <label style={expandedStyles.inputLabel}>Correo Electrónico</label>
+              <input 
+                type="email" 
+                placeholder="tu@correo.com" 
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                style={expandedStyles.textInput}
+                required
+              />
+            </div>
 
+            <div style={expandedStyles.inputFieldGroup}>
+              <label style={expandedStyles.inputLabel}>Contraseña</label>
+              <input 
+                type="password" 
+                placeholder="••••••••" 
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                style={expandedStyles.textInput}
+                required
+              />
+            </div>
+
+            <button type="submit" style={expandedStyles.submitPrimaryButton}>
+              {isSignUpMode ? 'Crear Cuenta Gratis' : 'Iniciar Sesión'}
+            </button>
+          </form>
+
+          <div style={expandedStyles.dividerSeparator}>
+            <span style={expandedStyles.dividerLineSpan}></span>
+            <span style={expandedStyles.dividerLabelSpan}>o continúa con</span>
+            <span style={expandedStyles.dividerLineSpan}></span>
+          </div>
+
+          <button onClick={handleGoogleAuthentication} style={expandedStyles.googleSocialButton}>
+            <svg width="20" height="20" viewBox="0 0 24 24" style={{ marginRight: '10px' }}>
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            Ingresar con cuenta de Google
+          </button>
+
+          <div style={expandedStyles.switchModeFooter}>
+            {isSignUpMode ? '¿Ya tienes una cuenta registrada?' : '¿No tienes cuenta en ChambaCerca?'}
             <button 
-              onClick={() => {
-                const nextRole = userRole === 'seeker' ? 'business' : 'seeker';
-                navigateTo('explore', nextRole);
-              }}
-              className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 flex items-center space-x-1 shadow-sm"
+              onClick={() => { setIsSignUpMode(!isSignUpMode); setAuthError(''); }}
+              style={expandedStyles.switchModeLinkButton}
             >
-              {userRole === 'seeker' ? <span>👤 Buscador</span> : <span>🏪 Modo Negocio</span>}
+              {isSignUpMode ? ' Inicia sesión' : ' Regístrate aquí'}
             </button>
           </div>
-        </header>
+
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // RENDERIZADO 2: APLICACIÓN PRINCIPAL (USUARIO CON SESIÓN ACTIVA)
+  // ---------------------------------------------------------------------------
+  return (
+    <div style={expandedStyles.appShellLayout}>
+      
+      {/* Toast de Notificaciones */}
+      {toastNotification && (
+        <div style={expandedStyles.toastFloatingNotification}>
+          🔔 {toastNotification}
+        </div>
       )}
 
-      <main className="flex-1 pb-20">
-        
-        {/* LANDING PAGE */}
-        {currentPage === 'landing' && (
-          <div className="p-6 flex flex-col items-center justify-between min-h-screen bg-gradient-to-b from-indigo-600 via-indigo-700 to-violet-800 text-white text-center relative overflow-hidden">
-            <div className="my-auto space-y-6 pt-10 z-10">
-              <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-inner border border-white/20 animate-bounce">
-                ⚡
-              </div>
-              <h1 className="text-4xl font-black tracking-tight leading-tight">ChambaCerca</h1>
-              <p className="text-indigo-100 text-sm max-w-xs mx-auto leading-relaxed">
-                El Tinder de los trabajos locales. Rápido, seguro y cerca de ti. 🚀
-              </p>
-
-              <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
-                <button 
-                  onClick={() => navigateTo('explore', 'seeker')}
-                  className="w-full bg-white text-indigo-700 font-bold py-3.5 px-6 rounded-2xl shadow-lg hover:scale-105 transition flex items-center justify-center space-x-2"
-                >
-                  <Search size={18} />
-                  <span>Busco Empleo</span>
-                </button>
-                <button 
-                  onClick={() => navigateTo('explore', 'business')}
-                  className="w-full bg-indigo-500/30 backdrop-blur-md text-white font-semibold py-3.5 px-6 rounded-2xl border border-white/30 hover:bg-white/20 transition flex items-center justify-center space-x-2"
-                >
-                  <Building size={18} />
-                  <span>Soy Negocio</span>
-                </button>
-              </div>
+      {/* Header Superior Principal */}
+      <header style={expandedStyles.mainTopHeader}>
+        <div style={expandedStyles.topHeaderContentWrapper}>
+          <div style={expandedStyles.brandTitleGroup}>
+            <span style={{ fontSize: '26px' }}>🛠️</span>
+            <div>
+              <h2 style={expandedStyles.brandMainTitle}>ChambaCerca</h2>
+              <span style={expandedStyles.brandSubTag}>Radar de empleos locales</span>
             </div>
+          </div>
 
-            <button 
-              onClick={() => setShowPrivacyModal(true)} 
-              className="text-[11px] text-indigo-200 underline pb-4 flex items-center justify-center space-x-1"
-            >
-              <Lock size={12} />
-              <span>Políticas de Seguridad y Privacidad</span>
+          <div style={expandedStyles.headerUserActions}>
+            <div style={expandedStyles.gpsStatusBadge} title={gpsStatusText}>
+              <span style={{ color: hasGpsPermission ? '#137333' : '#d93025' }}>●</span>
+              {hasGpsPermission ? ` Radar GPS (${radarDistanceKm}km)` : ' GPS Fijo'}
+            </div>
+            <button onClick={handleSignOutUser} style={expandedStyles.headerLogoutButton}>
+              Salir
             </button>
           </div>
-        )}
+        </div>
+      </header>
 
-        {/* EXPLORAR / MATCHING CON RADAR DE INTERVALO DE DISTANCIA (MIN - MAX) */}
-        {currentPage === 'explore' && (
-          <div className="p-4 space-y-4">
+      {/* Contenido Dinámico Según la Pestaña Activa */}
+      <main style={expandedStyles.appMainContainer}>
+
+        {/* -----------------------------------------------------------------
+            PESTAÑA 1: NOVEDADES / LISTADO DE TRABAJOS Y FILTROS
+            ----------------------------------------------------------------- */}
+        {currentTab === 'feed' && (
+          <div style={expandedStyles.tabContentContainer}>
             
-            <div className={`p-3 rounded-2xl shadow-sm border space-y-2 ${getCardClasses()}`}>
-              <div className="flex justify-between items-center text-xs font-semibold">
-                <button 
-                  onClick={requestGPSLocation}
-                  className="flex items-center space-x-1.5 hover:text-indigo-600 transition"
-                  title="Haz clic para actualizar tu GPS"
-                >
-                  <Navigation size={14} className="text-indigo-500 animate-pulse" />
-                  <span>{geoStatus}</span>
-                </button>
+            {/* Tarjeta de Búsqueda y Control de Radar */}
+            <div style={expandedStyles.radarFilterControlCard}>
+              <div style={expandedStyles.searchBarInputWrapper}>
+                <span style={{ fontSize: '18px' }}>🔍</span>
+                <input 
+                  type="text" 
+                  placeholder="Buscar por oficio, plomero, pintor, electricista..." 
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  style={expandedStyles.searchInnerInput}
+                />
+                {searchKeyword && (
+                  <button onClick={() => setSearchKeyword('')} style={expandedStyles.clearSearchButton}>✕</button>
+                )}
+              </div>
 
-                <div className="flex items-center space-x-2">
-                  <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                    {userRole === 'seeker' ? `${filteredJobs.length} Vacantes` : `${filteredCandidates.length} Candidatos`}
-                  </span>
-
+              {/* Slider de Categorías Horizontal */}
+              <div style={expandedStyles.horizontalCategoriesScroll}>
+                {CATEGORIES_LIST.map(category => (
                   <button 
-                    onClick={() => setShowFilterPanel(!showFilterPanel)}
-                    className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[11px] font-bold flex items-center space-x-1 border border-indigo-100"
+                    key={category}
+                    onClick={() => setSelectedCat(category)}
+                    style={{
+                      ...expandedStyles.categoryChipButton,
+                      ...(selectedCat === category ? expandedStyles.categoryChipButtonActive : {})
+                    }}
                   >
-                    <Sliders size={12} />
-                    <span>Radar: {minDistanceFilter} - {maxDistanceFilter} km</span>
+                    {category}
                   </button>
+                ))}
+              </div>
+
+              {/* Control del Rango del Radar GPS */}
+              <div style={expandedStyles.radarDistanceSliderContainer}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={expandedStyles.sliderTitleLabel}>📡 Distancia Máxima del Radar:</span>
+                  <span style={expandedStyles.sliderValueHighlight}><strong>{radarDistanceKm} km</strong> a la redonda</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="50" 
+                  value={radarDistanceKm}
+                  onChange={(e) => setRadarDistanceKm(Number(e.target.value))}
+                  style={expandedStyles.sliderInputElement}
+                />
+              </div>
+
+              {/* Filtros Secundarios: Urgencia y Ordenamiento */}
+              <div style={expandedStyles.secondaryFiltersRow}>
+                <div style={{ flex: 1 }}>
+                  <label style={expandedStyles.smallFilterLabel}>Urgencia:</label>
+                  <select 
+                    value={filterUrgency} 
+                    onChange={(e) => setFilterUrgency(e.target.value)}
+                    style={expandedStyles.filterSelectDropdown}
+                  >
+                    <option value="Todas">Todas las urgencias</option>
+                    <option value="Alta">Urgencia Alta 🔥</option>
+                    <option value="Media">Urgencia Media ⚡</option>
+                    <option value="Baja">Urgencia Baja 🌱</option>
+                  </select>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={expandedStyles.smallFilterLabel}>Ordenar Pago:</label>
+                  <select 
+                    value={sortByPay} 
+                    onChange={(e) => setSortByPay(e.target.value)}
+                    style={expandedStyles.filterSelectDropdown}
+                  >
+                    <option value="none">Por defecto</option>
+                    <option value="desc">Mayor pago a menor</option>
+                    <option value="asc">Menor pago a mayor</option>
+                  </select>
                 </div>
               </div>
 
-              {/* PANEL DE DOS BARRAS DESLIZANTES PARA RANGO DE DISTANCIA */}
-              {showFilterPanel && (
-                <div className="pt-3 border-t space-y-3">
-                  <div className="flex justify-between text-[11px] font-bold opacity-80">
-                    <span>Margen de distancia seleccionado:</span>
-                    <span className="text-indigo-600 font-extrabold">{minDistanceFilter} km  a  {maxDistanceFilter} km</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 block">Mínimo: {minDistanceFilter} km</label>
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max={maxDistanceFilter} 
-                        value={minDistanceFilter}
-                        onChange={(e) => setMinDistanceFilter(Number(e.target.value))}
-                        className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 block">Máximo: {maxDistanceFilter} km</label>
-                      <input 
-                        type="range" 
-                        min={minDistanceFilter} 
-                        max="100" 
-                        value={maxDistanceFilter}
-                        onChange={(e) => setMaxDistanceFilter(Number(e.target.value))}
-                        className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {userRole === 'seeker' ? (
-              loading ? (
-                <div className="text-center py-20 text-xs text-slate-500 animate-pulse">Cargando vacantes cercanas... 🌀</div>
-              ) : jobIndex < filteredJobs.length ? (
-                <div className={`rounded-3xl shadow-xl border overflow-hidden flex flex-col justify-between min-h-[480px] relative ${getCardClasses()}`}>
-                  <div>
-                    <div className="h-32 bg-slate-100 relative overflow-hidden flex items-center justify-center">
-                      {filteredJobs[jobIndex].logo ? (
-                        <img src={filteredJobs[jobIndex].logo} alt="Logo" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-4xl">🏪</div>
-                      )}
-                      
-                      <div className="absolute top-3 right-3 bg-emerald-500 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
-                        <MapPin size={10} />
-                        <span>
-                          {userCoords && filteredJobs[jobIndex].lat && filteredJobs[jobIndex].lng
-                            ? `${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km`
-                            : 'Distancia desconocida'}
-                        </span>
-                      </div>
-
-                      <button 
-                        onClick={() => { setReportTarget(filteredJobs[jobIndex]); setShowReportModal(true); }}
-                        className="absolute top-3 left-3 bg-slate-900/60 text-white p-1.5 rounded-full backdrop-blur-md"
-                        title="Reportar vacante falsa"
-                      >
-                        <Flag size={12} />
-                      </button>
-                    </div>
-
-                    <div className="p-5 space-y-3">
-                      <h3 className="font-bold text-xl">{filteredJobs[jobIndex].title}</h3>
-                      <p className="text-xs font-semibold text-indigo-500">{filteredJobs[jobIndex].company}</p>
-                      
-                      <p className="text-[11px] opacity-60 flex items-center space-x-1">
-                        <MapPin size={12} />
-                        <span className="truncate">{filteredJobs[jobIndex].address}</span>
-                      </p>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                        <div className="bg-slate-50 border p-2 rounded-xl flex items-center space-x-2 text-slate-700">
-                          <DollarSign size={14} className="text-emerald-500" />
-                          <span>{filteredJobs[jobIndex].salary}</span>
-                        </div>
-                        <div className="bg-slate-50 border p-2 rounded-xl flex items-center space-x-2 text-slate-700">
-                          <Clock size={14} className="text-amber-500" />
-                          <span>{filteredJobs[jobIndex].schedule}</span>
-                        </div>
-                      </div>
-
-                      <p className="text-xs opacity-80 leading-relaxed">{filteredJobs[jobIndex].description}</p>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-slate-500/5 border-t flex justify-around">
-                    <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
-                      <X size={26} />
-                    </button>
-                    <button onClick={() => handleLike(filteredJobs[jobIndex])} className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition">
-                      <Heart size={30} className="fill-white" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
-                  <div className="text-4xl">📍</div>
-                  <h3 className="font-bold">No hay vacantes en el margen de {minDistanceFilter} km a {maxDistanceFilter} km</h3>
-                  <p className="text-xs text-slate-400">Intenta ampliar tu margen de búsqueda en el botón de Radar.</p>
-                  <button onClick={() => setJobIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Reiniciar Lista</button>
-                </div>
-              )
-            ) : (
-              candidateIndex < filteredCandidates.length ? (
-                <div className={`rounded-3xl shadow-xl border overflow-hidden flex flex-col justify-between min-h-[480px] relative ${getCardClasses()}`}>
-                  <div>
-                    <div className="h-28 bg-indigo-100 relative overflow-hidden flex items-center justify-center">
-                      {filteredCandidates[candidateIndex].banner ? (
-                        <img src={filteredCandidates[candidateIndex].banner} alt="Portada" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center text-white/50 text-xs">
-                          Sin Foto de Portada
-                        </div>
-                      )}
-                      
-                      <button 
-                        onClick={() => { setReportTarget(filteredCandidates[candidateIndex]); setShowReportModal(true); }}
-                        className="absolute top-3 left-3 bg-slate-900/60 text-white p-1.5 rounded-full backdrop-blur-md"
-                        title="Reportar candidato"
-                      >
-                        <Flag size={12} />
-                      </button>
-                    </div>
-
-                    <div className="px-5 relative flex justify-between items-end -mt-10 mb-3">
-                      <div className="w-18 h-18 rounded-2xl bg-white p-1 shadow-md">
-                        {filteredCandidates[candidateIndex].avatar ? (
-                          <img src={filteredCandidates[candidateIndex].avatar} alt="Perfil" className="w-full h-full object-cover rounded-xl" />
-                        ) : (
-                          <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center text-2xl">👨‍🎓</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-5 pt-0 space-y-3">
-                      <div>
-                        <h3 className="font-bold text-xl">
-                          {filteredCandidates[candidateIndex].name || 'Candidato sin Nombre'}
-                        </h3>
-                        <p className="text-xs font-bold text-indigo-500">
-                          {filteredCandidates[candidateIndex].role || 'Buscando Empleo'} • {filteredCandidates[candidateIndex].age || 'Sin edad'}
-                        </p>
-                      </div>
-
-                      <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/50 space-y-1">
-                        <h4 className="text-[10px] font-bold text-indigo-400 uppercase">Habilidades</h4>
-                        <p className="text-xs font-medium text-indigo-900">
-                          {filteredCandidates[candidateIndex].skills || 'No especificadas'}
-                        </p>
-                      </div>
-
-                      <div className="space-y-1">
-                        <h4 className="text-[10px] font-bold opacity-40 uppercase">Sobre mí</h4>
-                        <p className="text-xs opacity-80 leading-relaxed">
-                          {filteredCandidates[candidateIndex].bio || 'Sin descripción disponible.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-slate-500/5 border-t flex justify-around">
-                    <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
-                      <X size={26} />
-                    </button>
-                    <button onClick={() => handleLike(filteredCandidates[candidateIndex])} className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition">
-                      <Heart size={30} className="fill-white" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
-                  <div className="text-4xl">👨‍🎓</div>
-                  <h3 className="font-bold">No hay prospectos en el rango de {minDistanceFilter} km a {maxDistanceFilter} km</h3>
-                  <button onClick={() => setCandidateIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Volver a revisar</button>
-                </div>
-              )
-            )}
-
-          </div>
-        )}
-
-        {/* CHAT DIRECTO EN TIEMPO REAL */}
-        {activeChat ? (
-          <div className="flex flex-col h-[85vh] bg-slate-50">
-            <div className="p-3 bg-white border-b flex items-center justify-between sticky top-0 z-20 shadow-sm">
-              <div className="flex items-center space-x-3">
-                <button onClick={() => setActiveChat(null)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-full">
-                  <ArrowLeft size={18} />
-                </button>
-
-                <div className="w-9 h-9 rounded-full bg-indigo-100 overflow-hidden flex items-center justify-center border">
-                  {activeChat.logo || activeChat.avatar ? (
-                    <img src={activeChat.logo || activeChat.avatar} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-sm">💬</span>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="font-bold text-xs text-slate-800">{activeChat.title || activeChat.name}</h3>
-                  <p className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span>En línea</span>
+            {/* Listado de Tarjetas de Trabajo (ChambaCards) */}
+            <div style={expandedStyles.jobCardsGridList}>
+              {processedJobsList.length === 0 ? (
+                <div style={expandedStyles.emptyResultsStateBox}>
+                  <div style={{ fontSize: '40px' }}>🔎</div>
+                  <h4 style={{ margin: '10px 0 5px 0', color: '#333' }}>No se encontraron trabajos en tu radar</h4>
+                  <p style={{ color: '#777', fontSize: '13px', margin: 0 }}>
+                    Prueba aumentando la distancia del radar en kilometros o seleccionando otra categoría.
                   </p>
                 </div>
-              </div>
-
-              <button 
-                onClick={() => { setReportTarget(activeChat); setShowReportModal(true); }}
-                className="p-2 text-slate-400 hover:text-rose-500"
-                title="Reportar conversación"
-              >
-                <Flag size={16} />
-              </button>
-            </div>
-
-            <div className="flex-1 p-4 overflow-y-auto space-y-3">
-              {chatMessages.length === 0 ? (
-                <div className="text-center py-10 space-y-2">
-                  <div className="text-3xl">👋</div>
-                  <p className="text-xs font-bold text-slate-600">¡Inicia la conversación!</p>
-                  <p className="text-[11px] text-slate-400">Pregunta sobre horarios, requisitos o agenda una cita.</p>
-                </div>
               ) : (
-                chatMessages.map((msg) => {
-                  const isMe = msg.senderId === currentUserId;
-                  return (
-                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] p-3 rounded-2xl text-xs leading-relaxed shadow-sm ${
-                        isMe 
-                          ? 'bg-indigo-600 text-white rounded-br-none' 
-                          : 'bg-white text-slate-800 border rounded-bl-none'
-                      }`}>
-                        <p>{msg.text}</p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <form onSubmit={handleSendMessage} className="p-3 bg-white border-t flex items-center space-x-2">
-              <input 
-                type="text" 
-                placeholder="Escribe un mensaje..."
-                value={newMessageText}
-                onChange={(e) => setNewMessageText(e.target.value)}
-                className="flex-1 bg-slate-100 border-none px-4 py-2.5 rounded-full text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <button 
-                type="submit" 
-                className="p-2.5 bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition"
-              >
-                <Send size={16} />
-              </button>
-            </form>
-          </div>
-        ) : null}
-
-        {/* PERFIL CANDIDATO */}
-        {currentPage === 'profile' && !activeChat && (
-          <div className="p-4 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="font-black text-xl">Tu Perfil 👤</h2>
-              {profileSavedNotice && (
-                <span className="text-xs text-emerald-600 font-bold flex items-center space-x-1 animate-bounce">
-                  <Check size={14} />
-                  <span>¡Sincronizado!</span>
-                </span>
-              )}
-            </div>
-
-            <div className={`rounded-3xl shadow-sm border overflow-hidden space-y-4 pb-5 ${getCardClasses()}`}>
-              <div className="h-28 bg-indigo-100 relative flex items-center justify-center overflow-hidden">
-                {candidateProfile.banner ? (
-                  <img src={candidateProfile.banner} alt="Banner" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xs text-indigo-400">Sin foto de portada</span>
-                )}
-                <label className="absolute bottom-2 right-2 bg-slate-900/70 text-white p-2 rounded-xl cursor-pointer">
-                  <Camera size={14} />
-                  <input type="file" accept="image/*" onChange={(e) => handleProfileImageUpload(e, 'banner')} className="hidden" />
-                </label>
-              </div>
-
-              <div className="px-5 relative flex justify-between items-end -mt-12">
-                <div className="relative w-20 h-20 rounded-2xl bg-white p-1 shadow-md">
-                  <div className="w-full h-full rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
-                    {candidateProfile.avatar ? (
-                      <img src={candidateProfile.avatar} alt="Perfil" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-3xl">👨‍🎓</span>
-                    )}
-                  </div>
-                  <label className="absolute -bottom-1 -right-1 bg-indigo-600 text-white p-1.5 rounded-lg cursor-pointer shadow">
-                    <Camera size={12} />
-                    <input type="file" accept="image/*" onChange={(e) => handleProfileImageUpload(e, 'avatar')} className="hidden" />
-                  </label>
-                </div>
-              </div>
-
-              <div className="px-5 space-y-3">
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Nombre Completo</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.name || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})} 
-                    className="w-full font-bold text-sm border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Puesto Deseado / Título</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. Barista / Cajero"
-                    value={candidateProfile.role || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, role: e.target.value})} 
-                    className="w-full text-xs font-semibold text-indigo-500 border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Edad</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.age || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, age: e.target.value})} 
-                    className="w-full text-xs border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Habilidades Clave</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.skills || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})} 
-                    className="w-full text-xs border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Sobre ti</label>
-                  <textarea 
-                    value={candidateProfile.bio || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})} 
-                    className="w-full text-xs border rounded-xl p-2 h-20 mt-1 bg-transparent focus:outline-none focus:border-indigo-600"
-                  ></textarea>
-                </div>
-
-                <button 
-                  onClick={handleSaveProfile}
-                  disabled={isSavingProfile}
-                  className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-md transition"
-                >
-                  {isSavingProfile ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Save size={16} />
-                  )}
-                  <span>{isSavingProfile ? 'Guardando...' : 'Guardar Perfil'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* SECCIÓN MIS VACANTES */}
-        {currentPage === 'my-jobs' && !activeChat && (
-          <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl">Mis Vacantes Publicadas 🏪</h2>
-
-            {myPostedJobs.length === 0 ? (
-              <div className={`p-8 text-center rounded-3xl border space-y-3 ${getCardClasses()}`}>
-                <p className="text-xs">No has publicado vacantes aún.</p>
-                <button onClick={() => navigateTo('post-job')} className="bg-indigo-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl">Publicar Vacante</button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {myPostedJobs.map((job) => (
-                  <div key={job.id} className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3 ${getCardClasses()}`}>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-bold text-sm">{job.title}</h4>
-                        <p className="text-xs text-indigo-500 font-medium">{job.company}</p>
-                        <p className="text-[10px] opacity-50 mt-1">{job.salary} • {job.schedule}</p>
-                      </div>
-                      
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${job.status === 'filled' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {job.status === 'filled' ? 'Ocupada / Oculta' : 'Activa'}
+                processedJobsList.map(jobItem => (
+                  <article key={jobItem.id} style={expandedStyles.chambaCardArticle}>
+                    
+                    <div style={expandedStyles.chambaCardTopBar}>
+                      <span style={expandedStyles.chambaCategoryTag}>{jobItem.category}</span>
+                      <span style={{
+                        ...expandedStyles.chambaUrgencyBadge,
+                        backgroundColor: jobItem.urgency === 'Alta' ? '#ffebee' : '#f1f3f4',
+                        color: jobItem.urgency === 'Alta' ? '#c62828' : '#555'
+                      }}>
+                        {jobItem.urgency === 'Alta' ? '🔥 Alta Urgencia' : `⚡ ${jobItem.urgency}`}
                       </span>
                     </div>
 
-                    <div className="flex gap-2 pt-2 border-t">
-                      <button 
-                        onClick={() => handleToggleJobStatus(job.id, job.status)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 ${job.status === 'filled' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}
-                      >
-                        {job.status === 'filled' ? <CheckCircle size={14} /> : <EyeOff size={14} />}
-                        <span>{job.status === 'filled' ? 'Marcar Activa' : 'Marcar Ocupada'}</span>
-                      </button>
+                    <h3 style={expandedStyles.chambaCardTitleText}>{jobItem.title}</h3>
+                    <p style={expandedStyles.chambaCardDescriptionText}>{jobItem.description}</p>
 
-                      <button 
-                        onClick={() => handleDeleteJob(job.id)}
-                        className="bg-rose-50 text-rose-600 border border-rose-200 p-2 rounded-xl text-xs font-bold"
-                        title="Eliminar vacante"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* CONFIGURACIÓN Y APARIENCIA */}
-        {currentPage === 'settings' && !activeChat && (
-          <div className="p-4 space-y-5">
-            <h2 className="font-black text-xl">Configuración y Seguridad ⚙️</h2>
-
-            <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
-              <div className="flex items-center space-x-2">
-                <Palette size={18} className="text-indigo-500" />
-                <h3 className="font-bold text-sm">Apariencia y Colores</h3>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button 
-                  onClick={() => setTheme('indigo')} 
-                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'indigo' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200'}`}
-                >
-                  <span> Indigo Classic</span>
-                  <div className="w-3 h-3 rounded-full bg-indigo-600"></div>
-                </button>
-
-                <button 
-                  onClick={() => setTheme('dark')} 
-                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'dark' ? 'border-purple-500 bg-slate-800 text-white' : 'border-slate-200'}`}
-                >
-                  <span> Modo Oscuro 🌙</span>
-                  <div className="w-3 h-3 rounded-full bg-slate-900 border"></div>
-                </button>
-
-                <button 
-                  onClick={() => setTheme('emerald')} 
-                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'emerald' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200'}`}
-                >
-                  <span> Esmeralda 🌿</span>
-                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                </button>
-
-                <button 
-                  onClick={() => setTheme('sunset')} 
-                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'sunset' ? 'border-amber-600 bg-amber-50 text-amber-700' : 'border-slate-200'}`}
-                >
-                  <span> Atardecer 🌅</span>
-                  <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                </button>
-              </div>
-            </div>
-
-            <div className={`p-4 rounded-3xl border space-y-2 ${getCardClasses()}`}>
-              <button 
-                onClick={() => setShowPrivacyModal(true)}
-                className="w-full flex items-center justify-between text-xs font-bold py-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <ShieldAlert size={16} className="text-indigo-500" />
-                  <span>Política Antifraude y Perfiles Falsos</span>
-                </div>
-                <span>→</span>
-              </button>
-            </div>
-
-          </div>
-        )}
-
-        {/* MATCHES Y LISTA DE CHATS */}
-        {currentPage === 'matches' && !activeChat && (
-          <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl">Tus Matches y Chats 🎉</h2>
-            {matches.length === 0 ? (
-              <p className="text-xs opacity-50 py-10 text-center">Aún no tienes contactos guardados. ¡Sigue explorando!</p>
-            ) : (
-              <div className="space-y-3">
-                {matches.map((item, idx) => (
-                  <div key={idx} className={`p-4 rounded-2xl border flex items-center justify-between ${getCardClasses()}`}>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center text-xl">
-                        {item.logo || item.avatar ? <img src={item.logo || item.avatar} alt="Logo" className="w-full h-full object-cover" /> : '💼'}
-                      </div>
+                    <div style={expandedStyles.chambaPriceRow}>
                       <div>
-                        <h4 className="font-bold text-sm">{item.title || item.name}</h4>
-                        <p className="text-xs opacity-60">{item.company || item.role || item.skills}</p>
+                        <span style={expandedStyles.priceAmountText}>{jobItem.pay}</span>
+                        <span style={expandedStyles.priceTypeSubtext}> ({jobItem.payType})</span>
                       </div>
+                      <span style={expandedStyles.applicantsCountBadge}>👥 {jobItem.applicantsCount} postulados</span>
                     </div>
-                    
+
+                    <div style={expandedStyles.chambaCardFooterMeta}>
+                      <span>👤 {jobItem.authorName}</span>
+                      <span>📍 A {jobItem.distanceKm} km</span>
+                      <span>⏱️ {jobItem.timeAgo}</span>
+                    </div>
+
                     <button 
-                      onClick={() => { playSound('click'); setActiveChat(item); }} 
-                      className="bg-indigo-600 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1 shadow-md hover:bg-indigo-700"
+                      onClick={() => setSelectedJobModal(jobItem)}
+                      style={expandedStyles.chambaApplyCardButton}
                     >
-                      <MessageSquare size={14} />
-                      <span>Chat</span>
+                      Ver Detalle y Postularme
                     </button>
-                  </div>
-                ))}
-              </div>
-            )}
+
+                  </article>
+                ))
+              )}
+            </div>
+
           </div>
         )}
 
-        {/* PUBLICAR VACANTE */}
-        {currentPage === 'post-job' && !activeChat && (
-          <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl">Publicar vacante 🏪</h2>
-            <form onSubmit={handlePostJob} className={`p-5 rounded-3xl border space-y-4 ${getCardClasses()}`}>
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Imagen / Logo</label>
-                <div className="flex items-center space-x-3">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-100 border overflow-hidden flex items-center justify-center">
-                    {businessLogo ? <img src={businessLogo} alt="Preview" className="w-full h-full object-cover" /> : <ImageIcon className="text-slate-400" size={24} />}
-                  </div>
-                  <label className="bg-indigo-50 text-indigo-600 text-xs font-bold px-3 py-2 rounded-xl cursor-pointer flex items-center space-x-1">
-                    <Upload size={14} />
-                    <span>{businessLogo ? 'Cambiar Foto' : 'Subir Foto'}</span>
-                    <input type="file" accept="image/*" onChange={handleBusinessLogoUpload} className="hidden" />
-                  </label>
+        {/* -----------------------------------------------------------------
+            PESTAÑA 2: MAPA DE RADAR INTERACTIVO
+            ----------------------------------------------------------------- */}
+        {currentTab === 'map' && (
+          <div style={expandedStyles.tabContentContainer}>
+            <div style={expandedStyles.mapHeaderBanner}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>🗺️ Radar de Coordenadas GPS</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', opacity: 0.9 }}>
+                Visualizando {processedJobsList.length} publicaciones activas cerca de ti ({userCoords.lat.toFixed(4)}, {userCoords.lng.toFixed(4)})
+              </p>
+            </div>
+
+            <div style={expandedStyles.interactiveMapCanvasContainer}>
+              <div style={expandedStyles.mapGridCanvasBackground}>
+                
+                {/* Pin de Ubicación Actual del Usuario */}
+                <div style={expandedStyles.userCenterGpsPin}>
+                  <div style={expandedStyles.userGpsPulseRing}></div>
+                  📍 <span style={expandedStyles.userGpsPinLabel}>Tu Ubicación Actual</span>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Puesto</label>
-                <input type="text" placeholder="Ej. Barista" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Nombre del Negocio</label>
-                <input type="text" placeholder="Ej. Café El Roble" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Ubicación del Negocio</label>
-                <div className="space-y-2">
-                  <button 
-                    type="button"
-                    onClick={() => setShowMapPicker(true)}
-                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 p-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition"
+                {/* Pins de Trabajos en el Mapa */}
+                {processedJobsList.map((jobPin, index) => (
+                  <div 
+                    key={jobPin.id}
+                    style={{
+                      ...expandedStyles.jobMapPinBubble,
+                      top: `${25 + ((index * 17) % 55)}%`,
+                      left: `${15 + ((index * 23) % 65)}%`
+                    }}
+                    onClick={() => setSelectedJobModal(jobPin)}
                   >
-                    <span>{selectedCoords ? '📌 Cambiar punto en el mapa' : '🗺 Seleccionar en el mapa'}</span>
-                  </button>
+                    🛠️ <strong>{jobPin.category}</strong>: {jobPin.pay}
+                  </div>
+                ))}
 
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* -----------------------------------------------------------------
+            PESTAÑA 3: FORMULARIO DE PUBLICACIÓN DE CHAMBA
+            ----------------------------------------------------------------- */}
+        {currentTab === 'publish' && (
+          <div style={expandedStyles.tabContentContainer}>
+            <div style={expandedStyles.publishFormCardBox}>
+              
+              <div style={expandedStyles.formCardHeader}>
+                <h3 style={{ margin: 0, fontSize: '18px', color: '#111' }}>📢 Publicar un Trabajo u Oficio</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+                  Llega a trabajadores y especialistas cerca de tu ubicación
+                </p>
+              </div>
+
+              <form onSubmit={handlePublishJobSubmit} style={expandedStyles.publishFormContainer}>
+                
+                <div style={expandedStyles.inputFieldGroup}>
+                  <label style={expandedStyles.inputLabel}>Título breve del trabajo o servicio *</label>
                   <input 
                     type="text" 
-                    placeholder="Dirección o referencia" 
-                    value={newAddress} 
-                    onChange={(e) => setNewAddress(e.target.value)} 
-                    className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" 
-                    required 
+                    placeholder="Ej. Se busca plomero para instalar lavabo" 
+                    value={publishForm.title}
+                    onChange={(e) => setPublishForm({...publishForm, title: e.target.value})}
+                    style={expandedStyles.textInput}
+                    required
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-bold mb-1 opacity-70">Salario</label>
-                  <input type="text" placeholder="Ej. $8,000/mes" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ ...expandedStyles.inputFieldGroup, flex: 1 }}>
+                    <label style={expandedStyles.inputLabel}>Categoría *</label>
+                    <select 
+                      value={publishForm.category}
+                      onChange={(e) => setPublishForm({...publishForm, category: e.target.value})}
+                      style={expandedStyles.textInput}
+                    >
+                      {CATEGORIES_LIST.filter(c => c !== 'Todas').map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ ...expandedStyles.inputFieldGroup, flex: 1 }}>
+                    <label style={expandedStyles.inputLabel}>Nivel de Urgencia *</label>
+                    <select 
+                      value={publishForm.urgency}
+                      onChange={(e) => setPublishForm({...publishForm, urgency: e.target.value})}
+                      style={expandedStyles.textInput}
+                    >
+                      <option value="Alta">Alta 🔥</option>
+                      <option value="Media">Media ⚡</option>
+                      <option value="Baja">Baja 🌱</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1 opacity-70">Horario</label>
-                  <input type="text" placeholder="Ej. Medio Tiempo" value={newSchedule} onChange={(e) => setNewSchedule(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ ...expandedStyles.inputFieldGroup, flex: 1 }}>
+                    <label style={expandedStyles.inputLabel}>Pago Estimado (MXN) *</label>
+                    <input 
+                      type="number" 
+                      placeholder="Ej. 500" 
+                      value={publishForm.payAmount}
+                      onChange={(e) => setPublishForm({...publishForm, payAmount: e.target.value})}
+                      style={expandedStyles.textInput}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ ...expandedStyles.inputFieldGroup, flex: 1 }}>
+                    <label style={expandedStyles.inputLabel}>Modalidad de Pago</label>
+                    <select 
+                      value={publishForm.payType}
+                      onChange={(e) => setPublishForm({...publishForm, payType: e.target.value})}
+                      style={expandedStyles.textInput}
+                    >
+                      <option value="Por trabajo">Por trabajo terminado</option>
+                      <option value="Por día">Por día completo</option>
+
+                      <option value="Por hora">Por hora</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={expandedStyles.inputFieldGroup}>
+                  <label style={expandedStyles.inputLabel}>Teléfono / WhatsApp de contacto</label>
+                  <input 
+                    type="tel" 
+                    placeholder="Ej. 2711234567" 
+                    value={publishForm.phone}
+                    onChange={(e) => setPublishForm({...publishForm, phone: e.target.value})}
+                    style={expandedStyles.textInput}
+                  />
+                </div>
+
+                <div style={expandedStyles.inputFieldGroup}>
+                  <label style={expandedStyles.inputLabel}>Descripción detallada *</label>
+                  <textarea 
+                    rows="4" 
+                    placeholder="Explica qué se necesita hacer, herramientas requeridas, dirección aproximada y horarios..." 
+                    value={publishForm.description}
+                    onChange={(e) => setPublishForm({...publishForm, description: e.target.value})}
+                    style={{ ...expandedStyles.textInput, resize: 'vertical' }}
+                    required
+                  />
+                </div>
+
+                <button type="submit" style={expandedStyles.submitPrimaryButton}>
+                  🚀 Publicar Chamba en el Radar
+                </button>
+
+              </form>
+
+            </div>
+          </div>
+        )}
+
+        {/* -----------------------------------------------------------------
+            PESTAÑA 4: MIS PUBLICACIONES ACTIVAS
+            ----------------------------------------------------------------- */}
+        {currentTab === 'my-jobs' && (
+          <div style={expandedStyles.tabContentContainer}>
+            <div style={expandedStyles.sectionCardBox}>
+              <h3 style={{ margin: '0 0 10px 0' }}>📂 Mis Publicaciones Activas</h3>
+              {jobsList.filter(j => j.isOwner).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: '#666' }}>
+                  <p>Aún no has publicado ningún trabajo.</p>
+                  <button onClick={() => setCurrentTab('publish')} style={expandedStyles.smallActionButton}>
+                    Publicar mi primera chamba
+                  </button>
+                </div>
+              ) : (
+                jobsList.filter(j => j.isOwner).map(myJob => (
+                  <div key={myJob.id} style={expandedStyles.myJobRowItem}>
+                    <div>
+                      <h4 style={{ margin: 0 }}>{myJob.title}</h4>
+                      <span style={{ fontSize: '12px', color: '#666' }}>{myJob.pay} • {myJob.applicantsCount} postulados</span>
+                    </div>
+                    <span style={expandedStyles.activeStatusTag}>Activa</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* -----------------------------------------------------------------
+            PESTAÑA 5: PERFIL DE USUARIO Y CONFIGURACIÓN
+            ----------------------------------------------------------------- */}
+        {currentTab === 'profile' && (
+          <div style={expandedStyles.tabContentContainer}>
+            <div style={expandedStyles.profileCenterCard}>
+              
+              <div style={expandedStyles.profileLargeAvatarCircle}>
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+                ) : (
+                  <span>{(user.displayName || user.email || 'U')[0].toUpperCase()}</span>
+                )}
+              </div>
+
+              <h3 style={expandedStyles.profileUserNameText}>{user.displayName || 'Usuario de ChambaCerca'}</h3>
+              <p style={expandedStyles.profileUserEmailText}>{user.email}</p>
+
+              <div style={expandedStyles.profileStatsRowGrid}>
+                <div style={expandedStyles.statGridItem}>
+                  <strong style={{ fontSize: '18px', color: '#0070f3' }}>4.9 ★</strong>
+                  <span style={expandedStyles.statGridLabel}>Reputación</span>
+                </div>
+                <div style={expandedStyles.statGridItem}>
+                  <strong style={{ fontSize: '18px', color: '#137333' }}>{jobsList.filter(j => j.isOwner).length}</strong>
+                  <span style={expandedStyles.statGridLabel}>Publicaciones</span>
+                </div>
+                <div style={expandedStyles.statGridItem}>
+                  <strong style={{ fontSize: '18px', color: '#333' }}>Verificado</strong>
+                  <span style={expandedStyles.statGridLabel}>Estado GPS</span>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Descripción</label>
-                <textarea placeholder="Descripción del puesto..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full border rounded-xl p-3 text-xs h-20 bg-slate-500/5 outline-none" required></textarea>
-              </div>
-
-              <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition">
-                Publicar Vacante
+              <button onClick={handleSignOutUser} style={expandedStyles.fullWidthLogoutButton}>
+                Cerrar Sesión
               </button>
-            </form>
+
+            </div>
           </div>
         )}
 
       </main>
 
-      {/* MODAL REGISTRO AUTOMÁTICO AL ENTRAR A LA PÁGINA */}
-      {showAuthModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="font-bold text-sm text-indigo-600 flex items-center space-x-2">
-                <Lock size={16} />
-                <span>Ingresa a ChambaCerca</span>
-              </h3>
-              {currentUser && (
-                <button onClick={() => setShowAuthModal(false)} className="text-slate-400"><X size={16} /></button>
-              )}
+      {/* -------------------------------------------------------------------
+          MODAL DETALLADO DE TRABAJO Y POSTULACIÓN
+          ------------------------------------------------------------------- */}
+      {selectedJobModal && (
+        <div style={expandedStyles.modalOverlayBackground}>
+          <div style={expandedStyles.jobModalCardContent}>
+            
+            <div style={expandedStyles.modalHeaderBar}>
+              <span style={expandedStyles.chambaCategoryTag}>{selectedJobModal.category}</span>
+              <button onClick={() => setSelectedJobModal(null)} style={expandedStyles.closeModalXButton}>✕</button>
             </div>
 
-            <p className="text-xs text-slate-500">
-              Registrate con un clic o verifica tu correo con un enlace seguro para usar la app.
-            </p>
+            <h2 style={{ fontSize: '18px', margin: '10px 0', color: '#111' }}>{selectedJobModal.title}</h2>
+            <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.5' }}>{selectedJobModal.description}</p>
 
-            {/* BOTÓN GOOGLE / GMAIL */}
-            <button 
-              onClick={handleGoogleSignIn}
-              disabled={authLoading}
-              className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-3 px-4 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-sm transition"
-            >
-              <span className="text-lg">🌐</span>
-              <span>Continuar con Google (Gmail)</span>
-            </button>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-200"></div>
-              <span className="flex-shrink mx-2 text-[10px] text-slate-400 font-bold uppercase">o por correo</span>
-              <div className="flex-grow border-t border-slate-200"></div>
+            <div style={expandedStyles.modalPriceHighlightBox}>
+              <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#137333' }}>{selectedJobModal.pay}</span>
+              <span style={{ fontSize: '13px', color: '#555' }}> Modalidad: {selectedJobModal.payType}</span>
             </div>
 
-            {/* FORMULARIO ENLACE MÁGICO A CORREO */}
-            {emailSent ? (
-              <div className="bg-emerald-50 text-emerald-800 p-3 rounded-2xl text-xs space-y-1 text-center border border-emerald-200">
-                <p className="font-bold">📩 ¡Enlace enviado!</p>
-                <p className="text-[11px] text-emerald-600">Revisa tu correo y haz clic en el botón enviado para ingresar automáticamente.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSendMagicLink} className="space-y-2">
-                <input 
-                  type="email" 
-                  placeholder="tu-correo@gmail.com" 
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  className="w-full bg-slate-100 border p-2.5 rounded-xl text-xs outline-none text-slate-800 focus:ring-2 focus:ring-indigo-600"
-                  required
-                />
-                <button 
-                  type="submit" 
-                  disabled={authLoading}
-                  className="w-full bg-indigo-600 text-white text-xs font-bold py-2.5 rounded-xl shadow-md hover:bg-indigo-700 flex items-center justify-center space-x-1"
-                >
-                  <Mail size={14} />
-                  <span>{authLoading ? 'Enviando...' : 'Enviar enlace de acceso'}</span>
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* POPUP DE REPORTE DE SEGURIDAD */}
-      {showReportModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-800 rounded-3xl p-5 space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="flex items-center space-x-2 text-rose-600 font-bold text-sm">
-              <Flag size={18} />
-              <span>Reportar Infracción</span>
-            </div>
-            <p className="text-xs text-slate-500">
-              ¿Por qué deseas reportar a <span className="font-bold">{reportTarget?.title || reportTarget?.name}</span>?
-            </p>
-            <div className="space-y-2 text-xs">
-              <button onClick={() => { setReportReason("🚫 Perfil o empleo falso / fraude"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🚫 Perfil o empleo falso / fraude</button>
-              <button onClick={() => { setReportReason("🔞 Contenido inapropiado"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🔞 Contenido inapropiado</button>
-              <button onClick={() => { setReportReason("⚠️ Spam o información engañosa"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">⚠️ Spam o información engañosa</button>
-            </div>
-            <button onClick={() => setShowReportModal(false)} className="w-full bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">Cancelar</button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL POLITICA DE SEGURIDAD Y PRIVACIDAD */}
-      {showPrivacyModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-sm w-full shadow-2xl max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-bold text-sm flex items-center space-x-2 text-indigo-600">
-                <ShieldAlert size={18} />
-                <span>Políticas de Seguridad</span>
-              </h3>
-              <button onClick={() => setShowPrivacyModal(false)} className="p-1 text-slate-400"><X size={18} /></button>
+            <div style={expandedStyles.modalAuthorInfoBox}>
+              <p style={{ margin: '3px 0', fontSize: '13px' }}><strong>Publicado por:</strong> {selectedJobModal.authorName} ({selectedJobModal.authorRating})</p>
+              <p style={{ margin: '3px 0', fontSize: '13px' }}><strong>Distancia GPS:</strong> A {selectedJobModal.distanceKm} km de ti</p>
+              <p style={{ margin: '3px 0', fontSize: '13px' }}><strong>Teléfono:</strong> {selectedJobModal.authorPhone}</p>
             </div>
 
-            <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda strictly prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
-              <p><strong>2. Protección de Datos Personales:</strong> ChambaCerca no comparte tu número de teléfono ni tus coordenadas exactas sin tu consentimiento directo al hacer match.</p>
-              <p><strong>3. Verificación de Negocios:</strong> Los negocios deben utilizar direcciones geolocalizadas reales para garantizar ofertas de trabajo seguras para los jóvenes.</p>
-            </div>
-
-            <button onClick={() => setShowPrivacyModal(false)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs">Entendido</button>
-          </div>
-        </div>
-      )}
-
-      {/* POPUP MATCH VERDADERO */}
-      {showMatchModal && lastMatch && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white text-slate-800 rounded-3xl p-6 text-center space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="text-5xl animate-bounce">🎉</div>
-            <h3 className="font-black text-2xl bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">¡Hicieron Match Mutuo!</h3>
-            <p className="text-xs text-slate-500">
-              ¡Interés recíproco confirmado con <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>! Se ha abierto la sala de chat.
-            </p>
-            <button 
-              onClick={() => {
-                setShowMatchModal(false);
-                setActiveChat(lastMatch);
-                navigateTo('matches');
-              }} 
-              className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg"
-            >
-              Iniciar Chat
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* NAVEGACIÓN INFERIOR */}
-      {currentPage !== 'landing' && !activeChat && (
-        <nav className={`fixed bottom-0 max-w-md w-full border-t px-4 py-2.5 flex justify-around items-center z-30 transition-colors ${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100'}`}>
-          <button onClick={() => navigateTo('explore')} className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-            <Search size={20} />
-            <span className="text-[10px] font-bold">Explorar</span>
-          </button>
-
-          {userRole === 'business' ? (
-            <>
-              <button onClick={() => navigateTo('my-jobs')} className={`flex flex-col items-center space-y-1 ${currentPage === 'my-jobs' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-                <Building size={20} />
-                <span className="text-[10px] font-bold">Mis Vacantes</span>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button 
+                onClick={() => {
+                  showToast(`¡Te has postulado a "${selectedJobModal.title}"! El anunciante recibirá tu perfil.`);
+                  setSelectedJobModal(null);
+                }}
+                style={expandedStyles.submitPrimaryButton}
+              >
+                ✅ Confirmar Postulación
               </button>
-
-              <button onClick={() => navigateTo('post-job')} className={`flex flex-col items-center space-y-1 ${currentPage === 'post-job' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-                <Sparkles size={20} />
-                <span className="text-[10px] font-bold">Publicar</span>
+              
+              <button 
+                onClick={() => {
+                  window.open(`https://wa.me/52${selectedJobModal.authorPhone}?text=Hola,%20vi%20tu%20publicación%20en%20ChambaCerca:%20${encodeURIComponent(selectedJobModal.title)}`, '_blank');
+                }}
+                style={expandedStyles.whatsappActionButton}
+              >
+                💬 WhatsApp
               </button>
-            </>
-          ) : (
-            <button onClick={() => navigateTo('profile')} className={`flex flex-col items-center space-y-1 ${currentPage === 'profile' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-              <User size={20} />
-              <span className="text-[10px] font-bold">Perfil</span>
-            </button>
-          )}
+            </div>
 
-          <button onClick={() => navigateTo('matches')} className={`flex flex-col items-center space-y-1 ${currentPage === 'matches' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-            <MessageSquare size={20} />
-            <span className="text-[10px] font-bold">Matches</span>
-          </button>
-        </nav>
+          </div>
+        </div>
       )}
+
+      {/* -------------------------------------------------------------------
+          NAVEGACIÓN FLOTANTE INFERIOR (BOTTOM NAV BAR)
+          ------------------------------------------------------------------- */}
+      <nav style={expandedStyles.bottomNavigationBar}>
+        <button 
+          onClick={() => setCurrentTab('feed')} 
+          style={{ ...expandedStyles.bottomNavItem, ...(currentTab === 'feed' ? expandedStyles.bottomNavItemActive : {}) }}
+        >
+          <span style={{ fontSize: '20px' }}>📋</span>
+          <span style={expandedStyles.bottomNavLabel}>Novedades</span>
+        </button>
+
+        <button 
+          onClick={() => setCurrentTab('map')} 
+          style={{ ...expandedStyles.bottomNavItem, ...(currentTab === 'map' ? expandedStyles.bottomNavItemActive : {}) }}
+        >
+          <span style={{ fontSize: '20px' }}>🗺️</span>
+          <span style={expandedStyles.bottomNavLabel}>Mapa</span>
+        </button>
+
+        <button 
+          onClick={() => setCurrentTab('publish')} 
+          style={{ ...expandedStyles.bottomNavItem, ...(currentTab === 'publish' ? expandedStyles.bottomNavItemActive : {}) }}
+        >
+          <span style={{ fontSize: '20px' }}>➕</span>
+          <span style={expandedStyles.bottomNavLabel}>Publicar</span>
+        </button>
+
+        <button 
+          onClick={() => setCurrentTab('my-jobs')} 
+          style={{ ...expandedStyles.bottomNavItem, ...(currentTab === 'my-jobs' ? expandedStyles.bottomNavItemActive : {}) }}
+        >
+          <span style={{ fontSize: '20px' }}>📂</span>
+          <span style={expandedStyles.bottomNavLabel}>Mis Chambas</span>
+        </button>
+
+        <button 
+          onClick={() => setCurrentTab('profile')} 
+          style={{ ...expandedStyles.bottomNavItem, ...(currentTab === 'profile' ? expandedStyles.bottomNavItemActive : {}) }}
+        >
+          <span style={{ fontSize: '20px' }}>👤</span>
+          <span style={expandedStyles.bottomNavLabel}>Perfil</span>
+        </button>
+      </nav>
 
     </div>
   );
 }
+
+// ===========================================================================
+// 4. HOJA DE ESTILOS PROFESIONALES COMPLETA Y DENSAMENTE ESTRUCTURADA
+// ===========================================================================
+const expandedStyles = {
+  loadingScreen: { display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f8f9fa' },
+  spinnerIcon: { width: '45px', height: '45px', border: '4px solid #e0e0e0', borderTop: '4px solid #0070f3', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
+
+  // Auth Styles
+  authBackground: { minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f4f6f8', padding: '16px', fontFamily: 'system-ui, -apple-system, sans-serif' },
+  authContainerBox: { background: '#ffffff', width: '100%', maxWidth: '420px', borderRadius: '20px', padding: '32px', boxShadow: '0 12px 30px rgba(0,0,0,0.08)', border: '1px solid #eaeaea' },
+  authBrandHeader: { textAlign: 'center', marginBottom: '24px' },
+  authLogoCircle: { width: '60px', height: '60px', background: '#eef6ff', borderRadius: '16px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center', fontSize: '30px', marginBottom: '10px' },
+  authTitleText: { fontSize: '26px', fontWeight: '800', color: '#111', margin: 0 },
+  authSubtitleText: { fontSize: '14px', color: '#666', marginTop: '6px', lineHeight: '1.4' },
+  authForm: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  inputFieldGroup: { display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' },
+  inputLabel: { fontSize: '13px', fontWeight: '600', color: '#444' },
+  textInput: { padding: '12px 14px', fontSize: '15px', borderRadius: '10px', border: '1px solid #ddd', outline: 'none', fontFamily: 'inherit' },
+  submitPrimaryButton: { width: '100%', padding: '14px', background: '#0070f3', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' },
+  googleSocialButton: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '12px', background: '#ffffff', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', fontWeight: '600', color: '#333', cursor: 'pointer' },
+  dividerSeparator: { display: 'flex', alignItems: 'center', margin: '20px 0' },
+  dividerLineSpan: { flex: 1, height: '1px', background: '#eee' },
+  dividerLabelSpan: { padding: '0 12px', fontSize: '12px', color: '#aaa' },
+  authErrorBanner: { background: '#ffebee', color: '#c62828', padding: '12px 16px', borderRadius: '10px', fontSize: '13px', marginBottom: '16px', textAlign: 'center' },
+  switchModeFooter: { textAlign: 'center', fontSize: '14px', color: '#555', marginTop: '22px' },
+  switchModeLinkButton: { background: 'none', border: 'none', color: '#0070f3', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
+
+  // App Layout
+  appShellLayout: { minHeight: '100vh', backgroundColor: '#f8f9fa', paddingBottom: '75px', fontFamily: 'system-ui, -apple-system, sans-serif' },
+  mainTopHeader: { background: '#ffffff', borderBottom: '1px solid #eaeaea', position: 'sticky', top: 0, zIndex: 100, padding: '12px 20px' },
+  topHeaderContentWrapper: { maxWidth: '650px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  brandTitleGroup: { display: 'flex', alignItems: 'center', gap: '10px' },
+  brandMainTitle: { fontSize: '18px', fontWeight: '800', margin: 0, color: '#111' },
+  brandSubTag: { fontSize: '10px', color: '#777', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  headerUserActions: { display: 'flex', alignItems: 'center', gap: '10px' },
+  gpsStatusBadge: { fontSize: '12px', background: '#f1f3f4', padding: '5px 10px', borderRadius: '15px', fontWeight: '600', color: '#333' },
+  headerLogoutButton: { background: '#ffebee', color: '#c62828', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+  
+  appMainContainer: { maxWidth: '650px', margin: '0 auto', padding: '16px' },
+  tabContentContainer: { display: 'flex', flexDirection: 'column', gap: '16px' },
+
+  // Filters & Controls
+  radarFilterControlCard: { background: '#ffffff', borderRadius: '14px', padding: '16px', border: '1px solid #eaeaea', display: 'flex', flexDirection: 'column', gap: '14px' },
+  searchBarInputWrapper: { display: 'flex', alignItems: 'center', background: '#f5f5f5', borderRadius: '10px', padding: '0 12px', border: '1px solid #e0e0e0' },
+  searchInnerInput: { flex: 1, padding: '12px 8px', border: 'none', background: 'transparent', outline: 'none', fontSize: '14px' },
+  clearSearchButton: { background: 'none', border: 'none', fontSize: '14px', color: '#888', cursor: 'pointer' },
+  horizontalCategoriesScroll: { display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' },
+  categoryChipButton: { whiteSpace: 'nowrap', padding: '6px 14px', borderRadius: '20px', border: '1px solid #e0e0e0', background: '#f8f9fa', fontSize: '13px', cursor: 'pointer', color: '#444' },
+  categoryChipButtonActive: { background: '#0070f3', color: '#ffffff', borderColor: '#0070f3', fontWeight: 'bold' },
+  radarDistanceSliderContainer: { display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '10px', borderTop: '1px solid #f0f0f0' },
+  sliderTitleLabel: { fontSize: '12px', color: '#666' },
+  sliderValueHighlight: { fontSize: '12px', color: '#111' },
+  sliderInputElement: { width: '100%', accentColor: '#0070f3' },
+  secondaryFiltersRow: { display: 'flex', gap: '12px' },
+  smallFilterLabel: { fontSize: '11px', color: '#666', display: 'block', marginBottom: '4px' },
+  filterSelectDropdown: { width: '100%', padding: '8px', fontSize: '12px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff' },
+
+  // Chamba Cards
+  jobCardsGridList: { display: 'flex', flexDirection: 'column', gap: '14px' },
+  chambaCardArticle: { background: '#ffffff', borderRadius: '14px', padding: '18px', border: '1px solid #eaeaea', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' },
+  chambaCardTopBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' },
+  chambaCategoryTag: { fontSize: '11px', background: '#eef6ff', color: '#0070f3', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold', textTransform: 'uppercase' },
+  chambaUrgencyBadge: { fontSize: '11px', padding: '4px 8px', borderRadius: '6px', fontWeight: '600' },
+  chambaCardTitleText: { fontSize: '16px', fontWeight: '700', margin: '6px 0', color: '#111' },
+  chambaCardDescriptionText: { fontSize: '14px', color: '#555', lineHeight: '1.4', margin: '0 0 12px 0' },
+  chambaPriceRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', background: '#f8f9fa', padding: '10px 12px', borderRadius: '8px' },
+  priceAmountText: { fontSize: '18px', fontWeight: 'bold', color: '#137333' },
+  priceTypeSubtext: { fontSize: '12px', color: '#666' },
+  applicantsCountBadge: { fontSize: '12px', color: '#555', fontWeight: '500' },
+  chambaCardFooterMeta: { display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#777', marginBottom: '14px' },
+  chambaApplyCardButton: { width: '100%', padding: '12px', background: '#111111', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' },
+  emptyResultsStateBox: { textAlign: 'center', padding: '40px 20px', background: '#ffffff', borderRadius: '14px', border: '1px dashed #ddd' },
+
+  // Map
+  mapHeaderBanner: { background: '#0070f3', color: '#ffffff', padding: '16px', borderRadius: '12px', marginBottom: '12px' },
+  interactiveMapCanvasContainer: { height: '380px', background: '#e5e3df', borderRadius: '14px', position: 'relative', overflow: 'hidden', border: '1px solid #ccc' },
+  mapGridCanvasBackground: { width: '100%', height: '100%', position: 'relative', backgroundImage: 'radial-gradient(#bbb 1px, transparent 1px)', backgroundSize: '24px 24px' },
+  userCenterGpsPin: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: '#0070f3', color: '#fff', padding: '8px 14px', borderRadius: '20px', fontWeight: 'bold', fontSize: '13px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 10 },
+  userGpsPulseRing: { position: 'absolute', width: '100%', height: '100%', borderRadius: '20px', border: '2px solid #0070f3', animation: 'pulse 1.5s infinite', top: 0, left: 0 },
+  userGpsPinLabel: { marginLeft: '4px', fontSize: '11px' },
+  jobMapPinBubble: { position: 'absolute', background: '#ffffff', border: '2px solid #137333', padding: '6px 10px', borderRadius: '12px', cursor: 'pointer', fontSize: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' },
+
+  // Forms & Modals
+  publishFormCardBox: { background: '#ffffff', borderRadius: '14px', padding: '22px', border: '1px solid #eaeaea' },
+  formCardHeader: { marginBottom: '18px' },
+  publishFormContainer: { display: 'flex', flexDirection: 'column', gap: '14px' },
+  sectionCardBox: { background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #eaeaea' },
+  myJobRowItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' },
+  activeStatusTag: { fontSize: '11px', background: '#e6f4ea', color: '#137333', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' },
+  smallActionButton: { background: '#0070f3', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', marginTop: '10px', cursor: 'pointer' },
+
+  // Profile
+  profileCenterCard: { background: '#ffffff', borderRadius: '14px', padding: '30px 20px', border: '1px solid #eaeaea', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  profileLargeAvatarCircle: { width: '85px', height: '85px', borderRadius: '50%', background: '#0070f3', color: '#fff', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '36px', fontWeight: 'bold', marginBottom: '14px' },
+  profileUserNameText: { margin: '0 0 4px 0', fontSize: '20px', color: '#111' },
+  profileUserEmailText: { color: '#666', fontSize: '14px', margin: 0 },
+  profileStatsRowGrid: { display: 'flex', gap: '16px', margin: '24px 0', width: '100%', justifyContent: 'center' },
+  statGridItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8f9fa', padding: '14px 18px', borderRadius: '10px', flex: 1 },
+  statGridLabel: { fontSize: '11px', color: '#777', marginTop: '4px' },
+  fullWidthLogoutButton: { width: '100%', padding: '14px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' },
+
+  // Toast & Modals
+  toastFloatingNotification: { position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: '#323232', color: '#fff', padding: '12px 24px', borderRadius: '25px', fontSize: '13px', fontWeight: '600', boxShadow: '0 6px 20px rgba(0,0,0,0.2)', zIndex: 1000 },
+  modalOverlayBackground: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '20px' },
+  jobModalCardContent: { background: '#fff', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' },
+  modalHeaderBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  closeModalXButton: { background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' },
+  modalPriceHighlightBox: { background: '#e6f4ea', padding: '14px', borderRadius: '10px', margin: '14px 0' },
+  modalAuthorInfoBox: { background: '#f8f9fa', padding: '12px', borderRadius: '10px', marginTop: '10px' },
+  whatsappActionButton: { flex: 1, padding: '14px', background: '#25D366', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
+
+  // Bottom Nav
+  bottomNavigationBar: { position: 'fixed', bottom: 0, left: 0, right: 0, background: '#ffffff', borderTop: '1px solid #eaeaea', display: 'flex', justifyContent: 'space-around', padding: '10px 0', zIndex: 100 },
+  bottomNavItem: { background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#888', cursor: 'pointer', flex: 1 },
+  bottomNavItemActive: { color: '#0070f3' },
+  bottomNavLabel: { fontSize: '10px', marginTop: '2px', fontWeight: '600' }
+};
