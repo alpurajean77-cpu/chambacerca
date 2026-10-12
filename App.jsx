@@ -25,9 +25,9 @@ import {
   doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where, getDocs 
 } from 'firebase/firestore';
 
-// Configuración de Firebase
+// Configuración de Firebase con la API Key limpia validada
 const firebaseConfig = {
-  apiKey: "AIzaSyB9naI5Ao7-TvszmaZUI1Cia99qvQL_7Iw",
+  apiKey: "AIzaSyCpQ3ybA84pHSrD11KrzBeTEl-wRayZ71k",
   authDomain: "chambacerca-ca0c9.firebaseapp.com",
   projectId: "chambacerca-ca0c9",
   storageBucket: "chambacerca-ca0c9.firebasestorage.app",
@@ -142,8 +142,8 @@ const DEMO_CANDIDATES = [
     bio: 'Estudiante universitaria buscando empleo de medio tiempo. Experiencia previa de 1 año en cafeterías.',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
     banner: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500',
-    lat: 19.4326,
-    lng: -99.1332
+    lat: 18.8950,
+    lng: -96.9320
   },
   {
     id: 'cand-2',
@@ -154,8 +154,8 @@ const DEMO_CANDIDATES = [
     bio: 'Disponibilidad inmediata para turnos matutinos o vespertinos. Excelente actitud de servicio.',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
     banner: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500',
-    lat: 19.4350,
-    lng: -99.1400
+    lat: 18.8910,
+    lng: -96.9280
   }
 ];
 
@@ -167,7 +167,7 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCoords, setSelectedCoords] = useState(
-    initialCoords || userCoords || { lat: 19.4326, lng: -99.1332 }
+    initialCoords || userCoords || { lat: 18.8939, lng: -96.9356 }
   );
   const [addressName, setAddressName] = useState('Cargando dirección...');
 
@@ -393,7 +393,6 @@ export default function App() {
 
   // VERIFICAR ENLACE MÁGICO DE CORREO Y SESIÓN DE USUARIO
   useEffect(() => {
-    // Verificar si el usuario viene dando clic en el enlace de correo
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem('emailForSignIn');
       if (!email) {
@@ -561,7 +560,7 @@ export default function App() {
     return () => unsubscribe();
   }, [activeChat]);
 
-  // INICIO DE SESIÓN CON GOOGLE (GMAIL)
+  // INICIO DE SESIÓN CON GOOGLE
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     try {
@@ -585,7 +584,7 @@ export default function App() {
 
     setAuthLoading(true);
     const actionCodeSettings = {
-      url: window.location.href, // Redirige de vuelta a la misma página
+      url: window.location.href,
       handleCodeInApp: true,
     };
 
@@ -853,10 +852,8 @@ export default function App() {
     }
   };
 
-  const getCardClasses = () => {
-    if (theme === 'dark') return 'bg-slate-900 border-slate-800 text-white';
-    return 'bg-white border-slate-100 text-slate-800';
-  };
+  const currentJob = filteredJobs[jobIndex];
+  const currentCandidate = filteredCandidates[candidateIndex];
 
   return (
     <div className={`max-w-md mx-auto min-h-screen flex flex-col font-sans shadow-2xl relative overflow-hidden transition-colors duration-300 ${getThemeClasses()}`}>
@@ -926,803 +923,724 @@ export default function App() {
       )}
 
       <main className="flex-1 pb-20">
-        
-        {/* LANDING PAGE */}
+
+        {/* PÁGINA 1: LANDING */}
         {currentPage === 'landing' && (
-          <div className="p-6 flex flex-col items-center justify-between min-h-screen bg-gradient-to-b from-indigo-600 via-indigo-700 to-violet-800 text-white text-center relative overflow-hidden">
-            <div className="my-auto space-y-6 pt-10 z-10">
-              <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-inner border border-white/20 animate-bounce">
+          <div className="min-h-screen flex flex-col justify-between p-6 bg-gradient-to-b from-indigo-900 via-indigo-800 to-slate-900 text-white">
+            <div className="pt-12 text-center space-y-4">
+              <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-2xl border border-white/20 animate-bounce">
                 ⚡
               </div>
-              <h1 className="text-4xl font-black tracking-tight leading-tight">ChambaCerca</h1>
-              <p className="text-indigo-100 text-sm max-w-xs mx-auto leading-relaxed">
-                El Tinder de los trabajos locales. Rápido, seguro y cerca de ti. 🚀
+              <h1 className="text-4xl font-black tracking-tight">ChambaCerca</h1>
+              <p className="text-indigo-200 text-sm max-w-xs mx-auto leading-relaxed">
+                Encuentra empleo local o contrataciones al instante conectando por radar GPS en tiempo real.
               </p>
-
-              <div className="pt-6 space-y-3 w-full max-w-xs mx-auto">
-                <button 
-                  onClick={() => navigateTo('explore', 'seeker')}
-                  className="w-full bg-white text-indigo-700 font-bold py-3.5 px-6 rounded-2xl shadow-lg hover:scale-105 transition flex items-center justify-center space-x-2"
-                >
-                  <Search size={18} />
-                  <span>Busco Empleo</span>
-                </button>
-                <button 
-                  onClick={() => navigateTo('explore', 'business')}
-                  className="w-full bg-indigo-500/30 backdrop-blur-md text-white font-semibold py-3.5 px-6 rounded-2xl border border-white/30 hover:bg-white/20 transition flex items-center justify-center space-x-2"
-                >
-                  <Building size={18} />
-                  <span>Soy Negocio</span>
-                </button>
-              </div>
             </div>
 
-            <button 
-              onClick={() => setShowPrivacyModal(true)} 
-              className="text-[11px] text-indigo-200 underline pb-4 flex items-center justify-center space-x-1"
-            >
-              <Lock size={12} />
-              <span>Políticas de Seguridad y Privacidad</span>
-            </button>
+            <div className="space-y-3 my-auto">
+              <button 
+                onClick={() => navigateTo('explore', 'seeker')}
+                className="w-full bg-white text-indigo-900 font-extrabold py-4 rounded-2xl shadow-xl hover:bg-indigo-50 transition flex items-center justify-center space-x-2 text-sm"
+              >
+                <User size={18} />
+                <span>Busco Trabajo</span>
+              </button>
+
+              <button 
+                onClick={() => navigateTo('explore', 'business')}
+                className="w-full bg-indigo-600/80 backdrop-blur-md text-white font-extrabold py-4 rounded-2xl border border-indigo-400/30 hover:bg-indigo-600 transition flex items-center justify-center space-x-2 text-sm"
+              >
+                <Building size={18} />
+                <span>Soy Negocio / Contratante</span>
+              </button>
+            </div>
+
+            <div className="text-center text-xs text-indigo-300/60 pb-4">
+              ChambaCerca • Conexión Laboral Directa
+            </div>
           </div>
         )}
 
-        {/* EXPLORAR / MATCHING CON RADAR DE DISTANCIA */}
+        {/* PÁGINA 2: EXPLORAR (TARJETAS TINDER) */}
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            <div className={`p-3 rounded-2xl shadow-sm border space-y-2 ${getCardClasses()}`}>
-              <div className="flex justify-between items-center text-xs font-semibold">
-                <div className="flex items-center space-x-2">
-                  <Navigation size={14} className="text-indigo-500 animate-pulse" />
-                  <span>{geoStatus}</span>
-                  <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                    {userRole === 'seeker' ? `${filteredJobs.length} Vacantes` : `${filteredCandidates.length} Candidatos`}
-                  </span>
-                </div>
-
-                <button 
-                  onClick={() => setShowFilterPanel(!showFilterPanel)}
-                  className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[11px] font-bold flex items-center space-x-1 border border-indigo-100"
-                >
-                  <Sliders size={12} />
-                  <span>Radar: {distanceFilter} km</span>
-                </button>
+            {/* BARRA DE RADAR Y DISTANCIA */}
+            <div className="flex items-center justify-between bg-white/60 dark:bg-slate-900/60 backdrop-blur-md p-3 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs font-semibold">
+              <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400">
+                <Navigation size={14} className="animate-spin" />
+                <span>{geoStatus}</span>
               </div>
-
-              {showFilterPanel && (
-                <div className="pt-2 border-t space-y-1">
-                  <div className="flex justify-between text-[11px] font-bold opacity-70">
-                    <span>Radio de búsqueda:</span>
-                    <span className="text-indigo-600 font-extrabold">{distanceFilter} km</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="50" 
-                    value={distanceFilter}
-                    onChange={(e) => setDistanceFilter(Number(e.target.value))}
-                    className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
-                  />
-                </div>
-              )}
+              <button 
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+                className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl text-slate-700 dark:text-slate-300"
+              >
+                <Sliders size={12} />
+                <span>Radar: {distanceFilter} km</span>
+              </button>
             </div>
 
-            {userRole === 'seeker' ? (
-              loading ? (
-                <div className="text-center py-20 text-xs text-slate-500 animate-pulse">Cargando vacantes cercanas... 🌀</div>
-              ) : jobIndex < filteredJobs.length ? (
-                <div className={`rounded-3xl shadow-xl border overflow-hidden flex flex-col justify-between min-h-[480px] relative ${getCardClasses()}`}>
-                  <div>
-                    <div className="h-32 bg-slate-100 relative overflow-hidden flex items-center justify-center">
-                      {filteredJobs[jobIndex].logo ? (
-                        <img src={filteredJobs[jobIndex].logo} alt="Logo" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-4xl">🏪</div>
+            {/* PANEL DESPLEGABLE DE DISTANCIA */}
+            {showFilterPanel && (
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3 shadow-lg">
+                <div className="flex justify-between items-center text-xs font-bold">
+                  <span>Ajustar rango del radar</span>
+                  <span className="text-indigo-600">{distanceFilter} km</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="50" 
+                  value={distanceFilter}
+                  onChange={(e) => setDistanceFilter(Number(e.target.value))}
+                  className="w-full accent-indigo-600"
+                />
+              </div>
+            )}
+
+            {/* VISTA DE BUSCADOR (VACANTES) */}
+            {userRole === 'seeker' && (
+              <>
+                {currentJob ? (
+                  <div className={`rounded-3xl border overflow-hidden shadow-xl transition-all duration-300 ${getCardClasses()}`}>
+                    <div className="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 relative p-4 flex items-end">
+                      {currentJob.logo && (
+                        <img src={currentJob.logo} alt="Logo" className="w-16 h-16 rounded-2xl border-2 border-white shadow-md object-cover mr-3 bg-white" />
                       )}
-                      
-                      <div className="absolute top-3 right-3 bg-emerald-500 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
-                        <MapPin size={10} />
-                        <span>
-                          {userCoords && filteredJobs[jobIndex].lat && filteredJobs[jobIndex].lng
-                            ? `${calculateDistanceInKm(userCoords.lat, userCoords.lng, filteredJobs[jobIndex].lat, filteredJobs[jobIndex].lng)} km`
-                            : 'Cerca'}
+                      <div className="text-white space-y-0.5">
+                        <span className="bg-white/20 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                          Vacante Disponible
                         </span>
+                        <h2 className="text-lg font-black leading-tight">{currentJob.title}</h2>
+                        <p className="text-xs font-medium text-indigo-100">{currentJob.company}</p>
                       </div>
 
                       <button 
-                        onClick={() => { setReportTarget(filteredJobs[jobIndex]); setShowReportModal(true); }}
-                        className="absolute top-3 left-3 bg-slate-900/60 text-white p-1.5 rounded-full backdrop-blur-md"
-                        title="Reportar vacante falsa"
+                        onClick={() => { setReportTarget(currentJob); setShowReportModal(true); }}
+                        className="absolute top-3 right-3 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md"
+                        title="Reportar publicación"
                       >
-                        <Flag size={12} />
+                        <Flag size={14} />
                       </button>
                     </div>
 
-                    <div className="p-5 space-y-3">
-                      <h3 className="font-bold text-xl">{filteredJobs[jobIndex].title}</h3>
-                      <p className="text-xs font-semibold text-indigo-500">{filteredJobs[jobIndex].company}</p>
-                      
-                      <p className="text-[11px] opacity-60 flex items-center space-x-1">
-                        <MapPin size={12} />
-                        <span className="truncate">{filteredJobs[jobIndex].address}</span>
-                      </p>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                        <div className="bg-slate-50 border p-2 rounded-xl flex items-center space-x-2 text-slate-700">
-                          <DollarSign size={14} className="text-emerald-500" />
-                          <span>{filteredJobs[jobIndex].salary}</span>
+                    <div className="p-5 space-y-4">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl flex items-center space-x-2">
+                          <DollarSign size={16} className="text-emerald-500 shrink-0" />
+                          <span className="font-bold">{currentJob.salary || 'Sueldo a tratar'}</span>
                         </div>
-                        <div className="bg-slate-50 border p-2 rounded-xl flex items-center space-x-2 text-slate-700">
-                          <Clock size={14} className="text-amber-500" />
-                          <span>{filteredJobs[jobIndex].schedule}</span>
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl flex items-center space-x-2">
+                          <Clock size={16} className="text-indigo-500 shrink-0" />
+                          <span className="font-bold">{currentJob.schedule || 'Horario flexible'}</span>
                         </div>
                       </div>
 
-                      <p className="text-xs opacity-80 leading-relaxed">{filteredJobs[jobIndex].description}</p>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-slate-500/5 border-t flex justify-around">
-                    <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
-                      <X size={26} />
-                    </button>
-                    <button onClick={() => handleLike(filteredJobs[jobIndex])} className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition">
-                      <Heart size={30} className="fill-white" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
-                  <div className="text-4xl">🎉</div>
-                  <h3 className="font-bold">Has visto todas las vacantes en un radio de {distanceFilter} km</h3>
-                  <button onClick={() => setJobIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Reiniciar Lista</button>
-                </div>
-              )
-            ) : (
-              candidateIndex < filteredCandidates.length ? (
-                <div className={`rounded-3xl shadow-xl border overflow-hidden flex flex-col justify-between min-h-[480px] relative ${getCardClasses()}`}>
-                  <div>
-                    <div className="h-28 bg-indigo-100 relative overflow-hidden flex items-center justify-center">
-                      {filteredCandidates[candidateIndex].banner ? (
-                        <img src={filteredCandidates[candidateIndex].banner} alt="Portada" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center text-white/50 text-xs">
-                          Sin Foto de Portada
+                      <div className="flex items-start space-x-2 text-xs text-slate-500 dark:text-slate-400">
+                        <MapPin size={16} className="text-indigo-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-slate-700 dark:text-slate-300">{currentJob.address}</p>
+                          {userCoords && currentJob.lat && (
+                            <p className="text-[10px] text-indigo-600 font-bold">
+                              📍 A {calculateDistanceInKm(userCoords.lat, userCoords.lng, currentJob.lat, currentJob.lng)} km de tu ubicación
+                            </p>
+                          )}
                         </div>
-                      )}
-                      
-                      <button 
-                        onClick={() => { setReportTarget(filteredCandidates[candidateIndex]); setShowReportModal(true); }}
-                        className="absolute top-3 left-3 bg-slate-900/60 text-white p-1.5 rounded-full backdrop-blur-md"
-                        title="Reportar candidato"
-                      >
-                        <Flag size={12} />
-                      </button>
-                    </div>
-
-                    <div className="px-5 relative flex justify-between items-end -mt-10 mb-3">
-                      <div className="w-18 h-18 rounded-2xl bg-white p-1 shadow-md">
-                        {filteredCandidates[candidateIndex].avatar ? (
-                          <img src={filteredCandidates[candidateIndex].avatar} alt="Perfil" className="w-full h-full object-cover rounded-xl" />
-                        ) : (
-                          <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center text-2xl">👨‍🎓</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-5 pt-0 space-y-3">
-                      <div>
-                        <h3 className="font-bold text-xl">
-                          {filteredCandidates[candidateIndex].name || 'Candidato sin Nombre'}
-                        </h3>
-                        <p className="text-xs font-bold text-indigo-500">
-                          {filteredCandidates[candidateIndex].role || 'Buscando Empleo'} • {filteredCandidates[candidateIndex].age || 'Sin edad'}
-                        </p>
-                      </div>
-
-                      <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/50 space-y-1">
-                        <h4 className="text-[10px] font-bold text-indigo-400 uppercase">Habilidades</h4>
-                        <p className="text-xs font-medium text-indigo-900">
-                          {filteredCandidates[candidateIndex].skills || 'No especificadas'}
-                        </p>
                       </div>
 
                       <div className="space-y-1">
-                        <h4 className="text-[10px] font-bold opacity-40 uppercase">Sobre mí</h4>
-                        <p className="text-xs opacity-80 leading-relaxed">
-                          {filteredCandidates[candidateIndex].bio || 'Sin descripción disponible.'}
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Descripción</h4>
+                        <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                          {currentJob.description}
                         </p>
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="p-4 bg-slate-500/5 border-t flex justify-around">
-                    <button onClick={handlePass} className="w-14 h-14 bg-white text-slate-400 rounded-full shadow-md flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition border">
-                      <X size={26} />
-                    </button>
-                    <button onClick={() => handleLike(filteredCandidates[candidateIndex])} className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition">
-                      <Heart size={30} className="fill-white" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
-                  <div className="text-4xl">👨‍🎓</div>
-                  <h3 className="font-bold">Has visto todos los prospectos cercanos</h3>
-                  <button onClick={() => setCandidateIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Volver a revisar</button>
-                </div>
-              )
-            )}
+                      {/* BOTONES ACCIÓN SWIPE */}
+                      <div className="flex justify-center space-x-6 pt-2">
+                        <button 
+                          onClick={handlePass}
+                          className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition"
+                        >
+                          <X size={24} />
+                        </button>
 
-          </div>
-        )}
-
-        {/* CHAT DIRECTO EN TIEMPO REAL */}
-        {activeChat ? (
-          <div className="flex flex-col h-[85vh] bg-slate-50">
-            <div className="p-3 bg-white border-b flex items-center justify-between sticky top-0 z-20 shadow-sm">
-              <div className="flex items-center space-x-3">
-                <button onClick={() => setActiveChat(null)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-full">
-                  <ArrowLeft size={18} />
-                </button>
-
-                <div className="w-9 h-9 rounded-full bg-indigo-100 overflow-hidden flex items-center justify-center border">
-                  {activeChat.logo || activeChat.avatar ? (
-                    <img src={activeChat.logo || activeChat.avatar} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-sm">💬</span>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="font-bold text-xs text-slate-800">{activeChat.title || activeChat.name}</h3>
-                  <p className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span>En línea</span>
-                  </p>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => { setReportTarget(activeChat); setShowReportModal(true); }}
-                className="p-2 text-slate-400 hover:text-rose-500"
-                title="Reportar conversación"
-              >
-                <Flag size={16} />
-              </button>
-            </div>
-
-            <div className="flex-1 p-4 overflow-y-auto space-y-3">
-              {chatMessages.length === 0 ? (
-                <div className="text-center py-10 space-y-2">
-                  <div className="text-3xl">👋</div>
-                  <p className="text-xs font-bold text-slate-600">¡Inicia la conversación!</p>
-                  <p className="text-[11px] text-slate-400">Pregunta sobre horarios, requisitos o agenda una cita.</p>
-                </div>
-              ) : (
-                chatMessages.map((msg) => {
-                  const isMe = msg.senderId === currentUserId;
-                  return (
-                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] p-3 rounded-2xl text-xs leading-relaxed shadow-sm ${
-                        isMe 
-                          ? 'bg-indigo-600 text-white rounded-br-none' 
-                          : 'bg-white text-slate-800 border rounded-bl-none'
-                      }`}>
-                        <p>{msg.text}</p>
+                        <button 
+                          onClick={() => handleLike(currentJob)}
+                          className="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-200 hover:scale-105 active:scale-95 transition"
+                        >
+                          <Heart size={24} fill="currentColor" />
+                        </button>
                       </div>
                     </div>
-                  );
-                })
-              )}
-            </div>
-
-            <form onSubmit={handleSendMessage} className="p-3 bg-white border-t flex items-center space-x-2">
-              <input 
-                type="text" 
-                placeholder="Escribe un mensaje..."
-                value={newMessageText}
-                onChange={(e) => setNewMessageText(e.target.value)}
-                className="flex-1 bg-slate-100 border-none px-4 py-2.5 rounded-full text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <button 
-                type="submit" 
-                className="p-2.5 bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition"
-              >
-                <Send size={16} />
-              </button>
-            </form>
-          </div>
-        ) : null}
-
-        {/* PERFIL CANDIDATO */}
-        {currentPage === 'profile' && !activeChat && (
-          <div className="p-4 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="font-black text-xl">Tu Perfil 👤</h2>
-              {profileSavedNotice && (
-                <span className="text-xs text-emerald-600 font-bold flex items-center space-x-1 animate-bounce">
-                  <Check size={14} />
-                  <span>¡Sincronizado!</span>
-                </span>
-              )}
-            </div>
-
-            <div className={`rounded-3xl shadow-sm border overflow-hidden space-y-4 pb-5 ${getCardClasses()}`}>
-              <div className="h-28 bg-indigo-100 relative flex items-center justify-center overflow-hidden">
-                {candidateProfile.banner ? (
-                  <img src={candidateProfile.banner} alt="Banner" className="w-full h-full object-cover" />
+                  </div>
                 ) : (
-                  <span className="text-xs text-indigo-400">Sin foto de portada</span>
+                  <div className="text-center py-16 space-y-3 bg-white dark:bg-slate-900 rounded-3xl border p-6">
+                    <Sparkles size={36} className="mx-auto text-indigo-500 animate-pulse" />
+                    <h3 className="font-bold text-slate-700 dark:text-slate-200">¡Has visto todas las vacantes cercanas!</h3>
+                    <p className="text-xs text-slate-400">Prueba aumentar el rango del radar para explorar áreas más lejanas.</p>
+                  </div>
                 )}
-                <label className="absolute bottom-2 right-2 bg-slate-900/70 text-white p-2 rounded-xl cursor-pointer">
-                  <Camera size={14} />
-                  <input type="file" accept="image/*" onChange={(e) => handleProfileImageUpload(e, 'banner')} className="hidden" />
-                </label>
-              </div>
+              </>
+            )}
 
-              <div className="px-5 relative flex justify-between items-end -mt-12">
-                <div className="relative w-20 h-20 rounded-2xl bg-white p-1 shadow-md">
-                  <div className="w-full h-full rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
-                    {candidateProfile.avatar ? (
-                      <img src={candidateProfile.avatar} alt="Perfil" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-3xl">👨‍🎓</span>
-                    )}
-                  </div>
-                  <label className="absolute -bottom-1 -right-1 bg-indigo-600 text-white p-1.5 rounded-lg cursor-pointer shadow">
-                    <Camera size={12} />
-                    <input type="file" accept="image/*" onChange={(e) => handleProfileImageUpload(e, 'avatar')} className="hidden" />
-                  </label>
-                </div>
-              </div>
-
-              <div className="px-5 space-y-3">
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Nombre Completo</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.name || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})} 
-                    className="w-full font-bold text-sm border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Puesto Deseado / Título</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. Barista / Cajero"
-                    value={candidateProfile.role || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, role: e.target.value})} 
-                    className="w-full text-xs font-semibold text-indigo-500 border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Edad</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.age || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, age: e.target.value})} 
-                    className="w-full text-xs border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Habilidades Clave</label>
-                  <input 
-                    type="text" 
-                    value={candidateProfile.skills || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})} 
-                    className="w-full text-xs border-b py-1 bg-transparent focus:outline-none focus:border-indigo-600" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold opacity-40 uppercase">Sobre ti</label>
-                  <textarea 
-                    value={candidateProfile.bio || ''} 
-                    onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})} 
-                    className="w-full text-xs border rounded-xl p-2 h-20 mt-1 bg-transparent focus:outline-none focus:border-indigo-600"
-                  ></textarea>
-                </div>
-
-                <button 
-                  onClick={handleSaveProfile}
-                  disabled={isSavingProfile}
-                  className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-md transition"
-                >
-                  {isSavingProfile ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Save size={16} />
-                  )}
-                  <span>{isSavingProfile ? 'Guardando...' : 'Guardar Perfil'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* SECCIÓN MIS VACANTES */}
-        {currentPage === 'my-jobs' && !activeChat && (
-          <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl">Mis Vacantes Publicadas 🏪</h2>
-
-            {myPostedJobs.length === 0 ? (
-              <div className={`p-8 text-center rounded-3xl border space-y-3 ${getCardClasses()}`}>
-                <p className="text-xs">No has publicado vacantes aún.</p>
-                <button onClick={() => navigateTo('post-job')} className="bg-indigo-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl">Publicar Vacante</button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {myPostedJobs.map((job) => (
-                  <div key={job.id} className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3 ${getCardClasses()}`}>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-bold text-sm">{job.title}</h4>
-                        <p className="text-xs text-indigo-500 font-medium">{job.company}</p>
-                        <p className="text-[10px] opacity-50 mt-1">{job.salary} • {job.schedule}</p>
-                      </div>
+            {/* VISTA DE NEGOCIO (CANDIDATOS) */}
+            {userRole === 'business' && (
+              <>
+                {currentCandidate ? (
+                  <div className={`rounded-3xl border overflow-hidden shadow-xl transition-all duration-300 ${getCardClasses()}`}>
+                    <div className="h-40 bg-slate-200 relative">
+                      {currentCandidate.banner ? (
+                        <img src={currentCandidate.banner} alt="Banner" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-r from-purple-500 to-indigo-600"></div>
+                      )}
                       
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${job.status === 'filled' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {job.status === 'filled' ? 'Ocupada / Oculta' : 'Activa'}
-                      </span>
-                    </div>
-
-                    <div className="flex gap-2 pt-2 border-t">
-                      <button 
-                        onClick={() => handleToggleJobStatus(job.id, job.status)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 ${job.status === 'filled' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}
-                      >
-                        {job.status === 'filled' ? <CheckCircle size={14} /> : <EyeOff size={14} />}
-                        <span>{job.status === 'filled' ? 'Marcar Activa' : 'Marcar Ocupada'}</span>
-                      </button>
-
-                      <button 
-                        onClick={() => handleDeleteJob(job.id)}
-                        className="bg-rose-50 text-rose-600 border border-rose-200 p-2 rounded-xl text-xs font-bold"
-                        title="Eliminar vacante"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* CONFIGURACIÓN Y APARIENCIA */}
-        {currentPage === 'settings' && !activeChat && (
-          <div className="p-4 space-y-5">
-            <h2 className="font-black text-xl">Configuración y Seguridad ⚙️</h2>
-
-            <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
-              <div className="flex items-center space-x-2">
-                <Palette size={18} className="text-indigo-500" />
-                <h3 className="font-bold text-sm">Apariencia y Colores</h3>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button 
-                  onClick={() => setTheme('indigo')} 
-                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'indigo' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200'}`}
-                >
-                  <span> Indigo Classic</span>
-                  <div className="w-3 h-3 rounded-full bg-indigo-600"></div>
-                </button>
-
-                <button 
-                  onClick={() => setTheme('dark')} 
-                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'dark' ? 'border-purple-500 bg-slate-800 text-white' : 'border-slate-200'}`}
-                >
-                  <span> Modo Oscuro 🌙</span>
-                  <div className="w-3 h-3 rounded-full bg-slate-900 border"></div>
-                </button>
-
-                <button 
-                  onClick={() => setTheme('emerald')} 
-                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'emerald' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200'}`}
-                >
-                  <span> Esmeralda 🌿</span>
-                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                </button>
-
-                <button 
-                  onClick={() => setTheme('sunset')} 
-                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between ${theme === 'sunset' ? 'border-amber-600 bg-amber-50 text-amber-700' : 'border-slate-200'}`}
-                >
-                  <span> Atardecer 🌅</span>
-                  <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                </button>
-              </div>
-            </div>
-
-            <div className={`p-4 rounded-3xl border space-y-2 ${getCardClasses()}`}>
-              <button 
-                onClick={() => setShowPrivacyModal(true)}
-                className="w-full flex items-center justify-between text-xs font-bold py-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <ShieldAlert size={16} className="text-indigo-500" />
-                  <span>Política Antifraude y Perfiles Falsos</span>
-                </div>
-                <span>→</span>
-              </button>
-            </div>
-
-          </div>
-        )}
-
-        {/* MATCHES Y LISTA DE CHATS */}
-        {currentPage === 'matches' && !activeChat && (
-          <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl">Tus Matches y Chats 🎉</h2>
-            {matches.length === 0 ? (
-              <p className="text-xs opacity-50 py-10 text-center">Aún no tienes contactos guardados. ¡Sigue explorando!</p>
-            ) : (
-              <div className="space-y-3">
-                {matches.map((item, idx) => (
-                  <div key={idx} className={`p-4 rounded-2xl border flex items-center justify-between ${getCardClasses()}`}>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center text-xl">
-                        {item.logo || item.avatar ? <img src={item.logo || item.avatar} alt="Logo" className="w-full h-full object-cover" /> : '💼'}
+                      <div className="absolute -bottom-8 left-6">
+                        <img 
+                          src={currentCandidate.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
+                          alt="Avatar" 
+                          className="w-20 h-20 rounded-2xl border-4 border-white shadow-md object-cover bg-white"
+                        />
                       </div>
+
+                      <button 
+                        onClick={() => { setReportTarget(currentCandidate); setShowReportModal(true); }}
+                        className="absolute top-3 right-3 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md"
+                      >
+                        <Flag size={14} />
+                      </button>
+                    </div>
+
+                    <div className="pt-10 p-6 space-y-4">
                       <div>
-                        <h4 className="font-bold text-sm">{item.title || item.name}</h4>
-                        <p className="text-xs opacity-60">{item.company || item.role || item.skills}</p>
+                        <div className="flex items-center space-x-2">
+                          <h2 className="text-lg font-black">{currentCandidate.name}</h2>
+                          <span className="text-xs text-slate-400 font-bold">{currentCandidate.age}</span>
+                        </div>
+                        <p className="text-xs font-bold text-indigo-600">{currentCandidate.role}</p>
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl space-y-1">
+                        <span className="text-[10px] font-bold uppercase text-slate-400">Habilidades clave</span>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{currentCandidate.skills}</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase text-slate-400">Acerca de mi</span>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{currentCandidate.bio}</p>
+                      </div>
+
+                      {/* BOTONES ACCIÓN SWIPE */}
+                      <div className="flex justify-center space-x-6 pt-2">
+                        <button 
+                          onClick={handlePass}
+                          className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition"
+                        >
+                          <X size={24} />
+                        </button>
+
+                        <button 
+                          onClick={() => handleLike(currentCandidate)}
+                          className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition"
+                        >
+                          <Heart size={24} fill="currentColor" />
+                        </button>
                       </div>
                     </div>
-                    
-                    <button 
-                      onClick={() => { playSound('click'); setActiveChat(item); }} 
-                      className="bg-indigo-600 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1 shadow-md hover:bg-indigo-700"
-                    >
-                      <MessageSquare size={14} />
-                      <span>Chat</span>
-                    </button>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="text-center py-16 space-y-3 bg-white dark:bg-slate-900 rounded-3xl border p-6">
+                    <User size={36} className="mx-auto text-indigo-500" />
+                    <h3 className="font-bold text-slate-700 dark:text-slate-200">Sin candidatos disponibles</h3>
+                    <p className="text-xs text-slate-400">Vuelve más tarde o expande tu área de búsqueda.</p>
+                  </div>
+                )}
+              </>
             )}
+
           </div>
         )}
 
-        {/* PUBLICAR VACANTE */}
-        {currentPage === 'post-job' && !activeChat && (
+        {/* PÁGINA 3: CHAT Y MATCHES */}
+        {currentPage === 'chat' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-black text-xl">Publicar vacante 🏪</h2>
-            <form onSubmit={handlePostJob} className={`p-5 rounded-3xl border space-y-4 ${getCardClasses()}`}>
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Imagen / Logo</label>
-                <div className="flex items-center space-x-3">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-100 border overflow-hidden flex items-center justify-center">
-                    {businessLogo ? <img src={businessLogo} alt="Preview" className="w-full h-full object-cover" /> : <ImageIcon className="text-slate-400" size={24} />}
+            {!activeChat ? (
+              <div className="space-y-4">
+                <h2 className="font-black text-lg">Mensajes y Conexiones</h2>
+                {matches.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 space-y-2">
+                    <MessageSquare size={32} className="mx-auto" />
+                    <p className="text-xs font-medium">Aún no tienes matches. ¡Sigue explorando vacantes o candidatos!</p>
                   </div>
-                  <label className="bg-indigo-50 text-indigo-600 text-xs font-bold px-3 py-2 rounded-xl cursor-pointer flex items-center space-x-1">
-                    <Upload size={14} />
-                    <span>{businessLogo ? 'Cambiar Foto' : 'Subir Foto'}</span>
-                    <input type="file" accept="image/*" onChange={handleBusinessLogoUpload} className="hidden" />
-                  </label>
-                </div>
+                ) : (
+                  <div className="space-y-2">
+                    {matches.map(m => (
+                      <div 
+                        key={m.id || m.matchDocId}
+                        onClick={() => setActiveChat(m)}
+                        className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center space-x-3 cursor-pointer hover:border-indigo-500 transition"
+                      >
+                        <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center font-bold text-indigo-600 shrink-0">
+                          {m.title ? '🏪' : '👤'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-xs truncate">{m.title || m.name}</h4>
+                          <p className="text-[10px] text-slate-400 truncate">{m.company || m.role || 'Conexión activa'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Puesto</label>
-                <input type="text" placeholder="Ej. Barista" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Nombre del Negocio</label>
-                <input type="text" placeholder="Ej. Café El Roble" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Ubicación del Negocio</label>
-                <div className="space-y-2">
-                  <button 
-                    type="button"
-                    onClick={() => setShowMapPicker(true)}
-                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 p-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition"
-                  >
-                    <span>{selectedCoords ? '📌 Cambiar punto en el mapa' : '🗺 Seleccionar en el mapa'}</span>
+            ) : (
+              <div className="flex flex-col h-[75vh]">
+                <div className="flex items-center space-x-3 pb-3 border-b">
+                  <button onClick={() => setActiveChat(null)} className="p-1.5 bg-slate-100 rounded-xl">
+                    <ArrowLeft size={16} />
                   </button>
+                  <div>
+                    <h3 className="font-bold text-xs">{activeChat.title || activeChat.name}</h3>
+                    <span className="text-[10px] text-emerald-500 font-bold">● En línea</span>
+                  </div>
+                </div>
 
+                <div className="flex-1 overflow-y-auto py-4 space-y-3">
+                  {chatMessages.map(msg => (
+                    <div 
+                      key={msg.id} 
+                      className={`flex ${msg.senderId === currentUserId ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[80%] px-3.5 py-2 rounded-2xl text-xs font-medium ${
+                        msg.senderId === currentUserId 
+                          ? 'bg-indigo-600 text-white rounded-br-none' 
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-bl-none'
+                      }`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <form onSubmit={handleSendMessage} className="pt-2 flex gap-2">
                   <input 
                     type="text" 
-                    placeholder="Dirección o referencia" 
-                    value={newAddress} 
-                    onChange={(e) => setNewAddress(e.target.value)} 
-                    className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" 
-                    required 
+                    placeholder="Escribe un mensaje..." 
+                    value={newMessageText}
+                    onChange={(e) => setNewMessageText(e.target.value)}
+                    className="flex-1 bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-2xl text-xs outline-none"
                   />
-                </div>
+                  <button type="submit" className="bg-indigo-600 text-white p-2.5 rounded-2xl">
+                    <Send size={16} />
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PÁGINA 4: PUBLICAR VACANTE (MODO NEGOCIO) */}
+        {currentPage === 'post-job' && (
+          <div className="p-4 space-y-4">
+            <h2 className="font-black text-lg">Publicar Nueva Vacante</h2>
+
+            <form onSubmit={handlePostJob} className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Título del Puesto</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej. Mesero / Barista" 
+                  value={newTitle} 
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Nombre del Negocio</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej. Cafetería El Portal" 
+                  value={newCompany} 
+                  onChange={(e) => setNewCompany(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  required
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-bold mb-1 opacity-70">Salario</label>
-                  <input type="text" placeholder="Ej. $8,000/mes" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Sueldo / Pago</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej. $1,200 sem." 
+                    value={newSalary} 
+                    onChange={(e) => setNewSalary(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1 opacity-70">Horario</label>
-                  <input type="text" placeholder="Ej. Medio Tiempo" value={newSchedule} onChange={(e) => setNewSchedule(e.target.value)} className="w-full border rounded-xl p-3 text-xs bg-slate-500/5 outline-none" required />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Horario</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej. Turno Matutino" 
+                    value={newSchedule} 
+                    onChange={(e) => setNewSchedule(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold mb-1 opacity-70">Descripción</label>
-                <textarea placeholder="Descripción del puesto..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full border rounded-xl p-3 text-xs h-20 bg-slate-500/5 outline-none" required></textarea>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Ubicación exacta</label>
+                <button 
+                  type="button"
+                  onClick={() => setShowMapPicker(true)}
+                  className="w-full bg-slate-100 dark:bg-slate-800 text-indigo-600 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2"
+                >
+                  <MapPin size={14} />
+                  <span>{newAddress || "Seleccionar en el Mapa 📍"}</span>
+                </button>
               </div>
 
-              <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl shadow-lg hover:bg-indigo-700 transition">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Descripción de la vacante</label>
+                <textarea 
+                  rows="3" 
+                  placeholder="Detalla requisitos y actividades..." 
+                  value={newDesc} 
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  required
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-lg shadow-indigo-200 mt-2"
+              >
                 Publicar Vacante
               </button>
             </form>
           </div>
         )}
 
-      </main>
+        {/* PÁGINA 5: MIS VACANTES PUBLICADAS */}
+        {currentPage === 'my-jobs' && (
+          <div className="p-4 space-y-4">
+            <h2 className="font-black text-lg">Mis Publicaciones</h2>
 
-      {/* MODAL REGISTRO / AUTENTICACIÓN ULTRA SEGURA (GOOGLE Y CORREO SIN CONTRASEÑA) */}
-      {showAuthModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="font-bold text-sm text-indigo-600 flex items-center space-x-2">
-                <Lock size={16} />
-                <span>Ingresa a ChambaCerca</span>
-              </h3>
-              <button onClick={() => setShowAuthModal(false)} className="text-slate-400"><X size={16} /></button>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              Registrate con un clic o verifica tu correo con un enlace seguro.
-            </p>
-
-            {/* BOTÓN GOOGLE / GMAIL */}
-            <button 
-              onClick={handleGoogleSignIn}
-              disabled={authLoading}
-              className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-3 px-4 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-sm transition"
-            >
-              <span className="text-lg">🌐</span>
-              <span>Continuar con Google (Gmail)</span>
-            </button>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-200"></div>
-              <span className="flex-shrink mx-2 text-[10px] text-slate-400 font-bold uppercase">o por correo</span>
-              <div className="flex-grow border-t border-slate-200"></div>
-            </div>
-
-            {/* FORMULARIO ENLACE MÁGICO A CORREO */}
-            {emailSent ? (
-              <div className="bg-emerald-50 text-emerald-800 p-3 rounded-2xl text-xs space-y-1 text-center border border-emerald-200">
-                <p className="font-bold">📩 ¡Enlace enviado!</p>
-                <p className="text-[11px] text-emerald-600">Revisa tu correo y haz clic en el botón enviado para ingresar automáticamente.</p>
+            {myPostedJobs.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 space-y-2">
+                <Building size={32} className="mx-auto" />
+                <p className="text-xs">Aún no has publicado vacantes desde este usuario.</p>
               </div>
             ) : (
-              <form onSubmit={handleSendMagicLink} className="space-y-2">
-                <input 
-                  type="email" 
-                  placeholder="tu-correo@gmail.com" 
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  className="w-full bg-slate-100 border p-2.5 rounded-xl text-xs outline-none text-slate-800 focus:ring-2 focus:ring-indigo-600"
-                  required
-                />
-                <button 
-                  type="submit" 
-                  disabled={authLoading}
-                  className="w-full bg-indigo-600 text-white text-xs font-bold py-2.5 rounded-xl shadow-md hover:bg-indigo-700 flex items-center justify-center space-x-1"
-                >
-                  <Mail size={14} />
-                  <span>{authLoading ? 'Enviando...' : 'Enviar enlace de acceso'}</span>
-                </button>
-              </form>
+              <div className="space-y-3">
+                {myPostedJobs.map(job => (
+                  <div key={job.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                    <div>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${job.status === 'filled' ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {job.status === 'filled' ? 'Cubierta' : 'Activa'}
+                      </span>
+                      <h4 className="font-bold text-xs mt-1">{job.title}</h4>
+                      <p className="text-[10px] text-slate-400">{job.company}</p>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <button 
+                        onClick={() => handleToggleJobStatus(job.id, job.status)}
+                        className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-xl text-xs font-bold"
+                      >
+                        {job.status === 'filled' ? 'Reabrir' : 'Cerrar'}
+                      </button>
+
+                      <button 
+                        onClick={() => handleDeleteJob(job.id)}
+                        className="p-2 bg-rose-50 text-rose-600 rounded-xl"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
+        )}
+
+        {/* PÁGINA 6: PERFIL CANDIDATO */}
+        {currentPage === 'profile' && (
+          <div className="p-4 space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="font-black text-lg">Mi Perfil Profesional</h2>
+              {profileSavedNotice && (
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                  ✓ Guardado
+                </span>
+              )}
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                  <img 
+                    src={candidateProfile.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
+                    alt="Foto" 
+                    className="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500"
+                  />
+                  <label className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 text-white rounded-full cursor-pointer">
+                    <Camera size={12} />
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleProfileImageUpload(e, 'avatar')} />
+                  </label>
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs">{candidateProfile.name || 'Sin nombre'}</h4>
+                  <p className="text-[10px] text-slate-400">{candidateProfile.role || 'Buscador de empleo'}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Nombre completo</label>
+                  <input 
+                    type="text" 
+                    value={candidateProfile.name} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, name: e.target.value})}
+                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Puesto / Especialidad</label>
+                  <input 
+                    type="text" 
+                    value={candidateProfile.role} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, role: e.target.value})}
+                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Habilidades clave</label>
+                  <input 
+                    type="text" 
+                    value={candidateProfile.skills} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, skills: e.target.value})}
+                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Breve biografía</label>
+                  <textarea 
+                    rows="3"
+                    value={candidateProfile.bio} 
+                    onChange={(e) => setCandidateProfile({...candidateProfile, bio: e.target.value})}
+                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                  />
+                </div>
+
+                <button 
+                  onClick={handleSaveProfile}
+                  disabled={isSavingProfile}
+                  className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2"
+                >
+                  {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  <span>Guardar Cambios</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PÁGINA 7: AJUSTES Y TEMA */}
+        {currentPage === 'settings' && (
+          <div className="p-4 space-y-4">
+            <h2 className="font-black text-lg">Configuración de la App</h2>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-slate-500 uppercase">Tema de Color</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {['indigo', 'dark', 'emerald', 'sunset'].map(t => (
+                    <button 
+                      key={t} 
+                      onClick={() => setTheme(t)}
+                      className={`p-3 rounded-2xl text-xs font-bold capitalize border ${theme === t ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'bg-slate-50'}`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 border-t">
+                <button 
+                  onClick={() => setShowPrivacyModal(true)}
+                  className="w-full text-left py-2 text-xs font-semibold text-slate-600 flex items-center justify-between"
+                >
+                  <span>Políticas de Privacidad y Seguridad</span>
+                  <Lock size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* MODAL AUTENTICACIÓN GOOGLE Y MAGIC LINK */}
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 space-y-5 shadow-2xl relative">
+            <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-slate-400">
+              <X size={18} />
+            </button>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-lg">Acceso a ChambaCerca</h3>
+              <p className="text-xs text-slate-400">Inicia sesión para interactuar con empleos y perfiles</p>
+            </div>
+
+            <div className="space-y-3">
+              <button 
+                onClick={handleGoogleSignIn}
+                disabled={authLoading}
+                className="w-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold py-3 rounded-2xl text-xs flex items-center justify-center space-x-2 border border-slate-200"
+              >
+                <span>🌐 Continuar con Google</span>
+              </button>
+
+              <div className="flex items-center space-x-2 my-2">
+                <div className="flex-1 h-px bg-slate-200"></div>
+                <span className="text-[10px] text-slate-400 font-bold">O CORREO</span>
+                <div className="flex-1 h-px bg-slate-200"></div>
+              </div>
+
+              {!emailSent ? (
+                <form onSubmit={handleSendMagicLink} className="space-y-2">
+                  <input 
+                    type="email" 
+                    placeholder="tu@correo.com" 
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                    required
+                  />
+                  <button 
+                    type="submit"
+                    disabled={authLoading}
+                    className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl text-xs"
+                  >
+                    Enviar Enlace de Acceso
+                  </button>
+                </form>
+              ) : (
+                <div className="bg-emerald-50 text-emerald-800 p-3 rounded-2xl text-center text-xs space-y-1">
+                  <CheckCircle size={20} className="mx-auto text-emerald-600" />
+                  <p className="font-bold">¡Enlace enviado!</p>
+                  <p className="text-[10px]">Revisa tu bandeja de entrada para ingresar.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* POPUP DE REPORTE DE SEGURIDAD */}
+      {/* MODAL MATCH CELEBRACIÓN */}
+      {showMatchModal && lastMatch && (
+        <div className="fixed inset-0 bg-indigo-900/90 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="text-center space-y-6 text-white max-w-sm">
+            <div className="text-6xl animate-bounce">🎉</div>
+            <h2 className="text-3xl font-black">¡Es un Match!</h2>
+            <p className="text-xs text-indigo-200">
+              Has conectado exitosamente con <strong className="text-white">{lastMatch.title || lastMatch.name}</strong>.
+            </p>
+
+            <div className="space-y-3 pt-4">
+              <button 
+                onClick={() => { setShowMatchModal(false); navigateTo('chat'); }}
+                className="w-full bg-white text-indigo-900 font-bold py-3.5 rounded-2xl text-xs"
+              >
+                Enviar Mensaje Ahora
+              </button>
+              <button 
+                onClick={() => setShowMatchModal(false)}
+                className="w-full bg-indigo-800 text-indigo-200 font-bold py-3.5 rounded-2xl text-xs"
+              >
+                Seguir Explorando
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REPORTE */}
       {showReportModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-800 rounded-3xl p-5 space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="flex items-center space-x-2 text-rose-600 font-bold text-sm">
-              <Flag size={18} />
-              <span>Reportar Infracción</span>
-            </div>
-            <p className="text-xs text-slate-500">
-              ¿Por qué deseas reportar a <span className="font-bold">{reportTarget?.title || reportTarget?.name}</span>?
-            </p>
-            <div className="space-y-2 text-xs">
-              <button onClick={() => { setReportReason("🚫 Perfil o empleo falso / fraude"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🚫 Perfil o empleo falso / fraude</button>
-              <button onClick={() => { setReportReason("🔞 Contenido inapropiado"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">🔞 Contenido inapropiado</button>
-              <button onClick={() => { setReportReason("⚠️ Spam o información engañosa"); handleReportSubmit(); }} className="w-full text-left p-2.5 rounded-xl border hover:bg-slate-50">⚠️ Spam o información engañosa</button>
-            </div>
-            <button onClick={() => setShowReportModal(false)} className="w-full bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">Cancelar</button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL POLITICA DE SEGURIDAD Y PRIVACIDAD */}
-      {showPrivacyModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-sm w-full shadow-2xl max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-bold text-sm flex items-center space-x-2 text-indigo-600">
-                <ShieldAlert size={18} />
-                <span>Políticas de Seguridad</span>
-              </h3>
-              <button onClick={() => setShowPrivacyModal(false)} className="p-1 text-slate-400"><X size={18} /></button>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p><strong>1. Tolerancia Cero a Perfiles Falsos:</strong> Queda estrictamente prohibida la creación de vacantes de trabajo fantasma o perfiles engañosos. Todo perfil reportado será suspendido.</p>
-              <p><strong>2. Protección de Datos Personales:</strong> ChambaCerca no comparte tu número de teléfono ni tus coordenadas exactas sin tu consentimiento directo al hacer match.</p>
-              <p><strong>3. Verificación de Negocios:</strong> Los negocios deben utilizar direcciones geolocalizadas reales para garantizar ofertas de trabajo seguras para los jóvenes.</p>
-            </div>
-
-            <button onClick={() => setShowPrivacyModal(false)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs">Entendido</button>
-          </div>
-        </div>
-      )}
-
-      {/* POPUP MATCH VERDADERO */}
-      {showMatchModal && lastMatch && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white text-slate-800 rounded-3xl p-6 text-center space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="text-5xl animate-bounce">🎉</div>
-            <h3 className="font-black text-2xl bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">¡Hicieron Match Mutuo!</h3>
-            <p className="text-xs text-slate-500">
-              ¡Interés recíproco confirmado con <span className="font-bold text-indigo-600">{lastMatch.title || lastMatch.name}</span>! Se ha abierto la sala de chat.
-            </p>
-            <button 
-              onClick={() => {
-                setShowMatchModal(false);
-                setActiveChat(lastMatch);
-                navigateTo('matches');
-              }} 
-              className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-xs shadow-lg"
+          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl">
+            <h3 className="font-bold text-sm">Reportar Publicación</h3>
+            <select 
+              value={reportReason} 
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl text-xs outline-none"
             >
-              Iniciar Chat
-            </button>
+              <option value="🚫 Perfil o empleo falso / fraude">🚫 Perfil o empleo falso / fraude</option>
+              <option value="⚠️ Contenido inapropiado">⚠️ Contenido inapropiado</option>
+              <option value="📩 Spam o acoso">📩 Spam o acoso</option>
+            </select>
+            <div className="flex gap-2">
+              <button onClick={() => setShowReportModal(false)} className="flex-1 py-2.5 bg-slate-100 rounded-xl text-xs font-bold">Cancelar</button>
+              <button onClick={handleReportSubmit} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-xs font-bold">Enviar Reporte</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* NAVEGACIÓN INFERIOR */}
+      {/* NAVEGACIÓN INFERIOR (BOTTOM NAV) */}
       {currentPage !== 'landing' && !activeChat && (
-        <nav className={`fixed bottom-0 max-w-md w-full border-t px-4 py-2.5 flex justify-around items-center z-30 transition-colors ${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-100'}`}>
-          <button onClick={() => navigateTo('explore')} className={`flex flex-col items-center space-y-1 ${currentPage === 'explore' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-            <Search size={20} />
-            <span className="text-[10px] font-bold">Explorar</span>
+        <nav className="fixed bottom-0 max-w-md w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 flex justify-around py-2.5 z-40">
+          <button 
+            onClick={() => navigateTo('explore', userRole)} 
+            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'explore' ? 'text-indigo-600' : 'text-slate-400'}`}
+          >
+            <Search size={18} />
+            <span>Explorar</span>
+          </button>
+
+          <button 
+            onClick={() => navigateTo('chat')} 
+            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'chat' ? 'text-indigo-600' : 'text-slate-400'}`}
+          >
+            <MessageSquare size={18} />
+            <span>Mensajes</span>
           </button>
 
           {userRole === 'business' ? (
-            <>
-              <button onClick={() => navigateTo('my-jobs')} className={`flex flex-col items-center space-y-1 ${currentPage === 'my-jobs' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-                <Building size={20} />
-                <span className="text-[10px] font-bold">Mis Vacantes</span>
-              </button>
-
-              <button onClick={() => navigateTo('post-job')} className={`flex flex-col items-center space-y-1 ${currentPage === 'post-job' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-                <Sparkles size={20} />
-                <span className="text-[10px] font-bold">Publicar</span>
-              </button>
-            </>
+            <button 
+              onClick={() => navigateTo('post-job')} 
+              className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'post-job' ? 'text-indigo-600' : 'text-slate-400'}`}
+            >
+              <Building size={18} />
+              <span>Publicar</span>
+            </button>
           ) : (
-            <button onClick={() => navigateTo('profile')} className={`flex flex-col items-center space-y-1 ${currentPage === 'profile' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-              <User size={20} />
-              <span className="text-[10px] font-bold">Perfil</span>
+            <button 
+              onClick={() => navigateTo('my-jobs')} 
+              className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'my-jobs' ? 'text-indigo-600' : 'text-slate-400'}`}
+            >
+              <Building size={18} />
+              <span>Mis Vacantes</span>
             </button>
           )}
 
-          <button onClick={() => navigateTo('matches')} className={`flex flex-col items-center space-y-1 ${currentPage === 'matches' ? 'text-indigo-500 scale-110' : 'opacity-40'} transition`}>
-            <MessageSquare size={20} />
-            <span className="text-[10px] font-bold">Matches</span>
+          <button 
+            onClick={() => navigateTo('profile')} 
+            className={`flex flex-col items-center text-[10px] font-bold ${currentPage === 'profile' ? 'text-indigo-600' : 'text-slate-400'}`}
+          >
+            <User size={18} />
+            <span>Perfil</span>
           </button>
         </nav>
       )}
