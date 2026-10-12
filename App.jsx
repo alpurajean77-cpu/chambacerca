@@ -3,24 +3,26 @@ import {
   MapPin, DollarSign, Clock, Heart, X, 
   MessageSquare, User, Building, Search, 
   Sliders, Navigation, Camera, Image as ImageIcon, Upload,
-  UserCheck, Crosshair, Map as MapIcon, Check, Save, Loader2,
-  Trash2, CheckCircle, ShieldAlert, Settings, Palette, Volume2,
-  Phone, Lock, Flag, EyeOff, Sparkles, Send, ShieldCheck, ArrowLeft, Key, LogOut
+  Check, Save, Loader2,
+  Trash2, CheckCircle, ShieldAlert, Settings, Palette,
+  Lock, Flag, EyeOff, Sparkles, Send, ArrowLeft, LogOut, Mail
 } from 'lucide-react';
 
 // Importaciones de Firebase
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  RecaptchaVerifier, 
-  signInWithPhoneNumber, 
-  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
   onAuthStateChanged,
   signOut 
 } from 'firebase/auth';
 import { 
   getFirestore, collection, addDoc, onSnapshot, query,
-  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where, orderBy, getDocs 
+  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, where, getDocs 
 } from 'firebase/firestore';
 
 // Configuración de Firebase
@@ -37,10 +39,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-
-// CREDENCIALES Y UID OFICIAL DEL ADMINISTRADOR ÚNICO
-const ADMIN_UID = "nZemScrCEBe2H1IRxvZFRYyKKvo2";
-const ADMIN_EMAIL = "alpurajean77@gmail.com";
+const googleProvider = new GoogleAuthProvider();
 
 // SINTETIZADOR DE SONIDOS NATIVO (Web Audio API)
 const playSound = (type) => {
@@ -327,14 +326,11 @@ const MapPickerModal = ({ initialCoords, userCoords, onConfirm, onClose }) => {
 };
 
 export default function App() {
-  // USUARIO REAL AUTENTICADO
   const [currentUser, setCurrentUser] = useState(null);
   const [currentUserId, setCurrentUserId] = useState('');
 
   const [currentPage, setCurrentPage] = useState('landing'); 
   const [userRole, setUserRole] = useState('seeker'); 
-  
-  // ESTADO DE TEMA (PERSONALIZACIÓN DE COLORES Y MODO OSCURO)
   const [theme, setTheme] = useState('indigo');
 
   const [jobs, setJobs] = useState([]);
@@ -355,35 +351,23 @@ export default function App() {
   const [userCoords, setUserCoords] = useState(null);
   const [geoStatus, setGeoStatus] = useState('Obteniendo GPS...');
 
-  // FILTRO DE RADAR / DISTANCIA (km)
   const [distanceFilter, setDistanceFilter] = useState(15); 
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
-  // CHAT EN TIEMPO REAL
   const [activeChat, setActiveChat] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessageText, setNewMessageText] = useState('');
 
-  // MODAL DE POLITICA Y REPORTE
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
   const [reportReason, setReportReason] = useState('🚫 Perfil o empleo falso / fraude');
 
-  // AUTENTICACIÓN DE TELÉFONO REAL (SMS + OTP)
-  const [phoneAuthNumber, setPhoneAuthNumber] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [showOtpModal, setShowOtpModal] = useState(false);
+  // AUTENTICACIÓN SEGURA (GOOGLE Y ENLACE MÁGICO AL CORREO)
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState(null);
-
-  // MODERACIÓN / PANEL ADMIN CON VALIDACIÓN SERVIDOR DE FIREBASE AUTH
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminAuthError, setAdminAuthError] = useState('');
-  const [reportsList, setReportsList] = useState([]);
 
   // Perfil Candidato
   const [candidateProfile, setCandidateProfile] = useState({
@@ -407,26 +391,39 @@ export default function App() {
   const [newDesc, setNewDesc] = useState('');
   const [businessLogo, setBusinessLogo] = useState(null);
 
-  // ESCUCHAR ESTADO DE SESIÓN Y VERIFICAR UID DE ADMINISTRADOR EN SERVIDOR
+  // VERIFICAR ENLACE MÁGICO DE CORREO Y SESIÓN DE USUARIO
   useEffect(() => {
+    // Verificar si el usuario viene dando clic en el enlace de correo
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let email = window.localStorage.getItem('emailForSignIn');
+      if (!email) {
+        email = window.prompt('Por favor ingresa tu correo para confirmar el acceso:');
+      }
+      if (email) {
+        setAuthLoading(true);
+        signInWithEmailLink(auth, email, window.location.href)
+          .then((result) => {
+            window.localStorage.removeItem('emailForSignIn');
+            setCurrentUser(result.user);
+            setCurrentUserId(result.user.uid);
+            setAuthLoading(false);
+            alert("¡Correo verificado con éxito! Bienvenido a ChambaCerca.");
+          })
+          .catch((error) => {
+            console.error("Error al ingresar con link:", error);
+            setAuthLoading(false);
+            alert("El enlace ha expirado o es inválido.");
+          });
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUser(user);
         setCurrentUserId(user.uid);
-        if (user.uid === ADMIN_UID) {
-          setIsAdmin(true);
-        } else {
-          setIsAdmin(false);
-        }
       } else {
-        let localUid = localStorage.getItem('chamba_user_id');
-        if (!localUid) {
-          localUid = 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-          localStorage.setItem('chamba_user_id', localUid);
-        }
-        setCurrentUserId(localUid);
         setCurrentUser(null);
-        setIsAdmin(false);
+        setCurrentUserId('');
       }
     });
     return () => unsubscribe();
@@ -472,12 +469,12 @@ export default function App() {
           setCandidateProfile(docSnap.data());
         } else {
           const initialData = {
-            name: 'Usuario ChambaCerca',
+            name: currentUser?.displayName || 'Usuario ChambaCerca',
             age: '20 años',
             role: 'Buscando Empleo',
             skills: 'Atención al cliente, Puntualidad',
-            bio: 'Perfil registrado en ChambaCerca.',
-            avatar: null,
+            bio: 'Perfil verificado en ChambaCerca.',
+            avatar: currentUser?.photoURL || null,
             banner: null
           };
           await setDoc(docRef, initialData);
@@ -489,7 +486,7 @@ export default function App() {
     };
 
     fetchProfile();
-  }, [currentUserId]);
+  }, [currentUserId, currentUser]);
 
   // ESCUCHAR PERFILES EN TIEMPO REAL
   useEffect(() => {
@@ -550,12 +547,12 @@ export default function App() {
 
     const chatId = activeChat.matchDocId || activeChat.id;
     const q = query(
-      collection(db, "chats", chatId, "mensajes"),
-      orderBy("createdAt", "asc")
+      collection(db, "chats", chatId, "mensajes")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      msgs.sort((a,b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
       setChatMessages(msgs);
     }, (err) => {
       console.error("Error al obtener mensajes:", err);
@@ -564,108 +561,61 @@ export default function App() {
     return () => unsubscribe();
   }, [activeChat]);
 
-  // ESCUCHAR REPORTES PARA ADMIN
-  useEffect(() => {
-    if (!isAdmin) return;
-    const q = query(collection(db, "reportes"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setReportsList(list);
-    }, (err) => console.error(err));
-
-    return () => unsubscribe();
-  }, [isAdmin]);
-
-  // ENVIAR CÓDIGO SMS REAL (FIREBASE PHONE AUTH)
-  const handleSendSms = async (e) => {
-    e.preventDefault();
-    if (phoneAuthNumber.length < 10) {
-      alert("Por favor ingresa un número válido a 10 dígitos.");
-      return;
-    }
-
+  // INICIO DE SESIÓN CON GOOGLE (GMAIL)
+  const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     try {
-      if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'invisible',
-          'callback': () => {}
-        });
-      }
-
-      const formattedNumber = phoneAuthNumber.startsWith('+') ? phoneAuthNumber : `+52${phoneAuthNumber}`;
-      const confirmation = await signInWithPhoneNumber(auth, formattedNumber, window.recaptchaVerifier);
-      setConfirmationResult(confirmation);
-      setShowOtpModal(true);
-      setAuthLoading(false);
-      playSound('click');
-    } catch (error) {
-      console.error("Error al enviar SMS:", error);
-      alert(`Error de autenticación SMS: ${error.message}`);
-      setAuthLoading(false);
-    }
-  };
-
-  // VERIFICAR CÓDIGO OTP
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (!confirmationResult || !otpCode) return;
-
-    setAuthLoading(true);
-    try {
-      const result = await confirmationResult.confirm(otpCode);
+      const result = await signInWithPopup(auth, googleProvider);
       setCurrentUser(result.user);
       setCurrentUserId(result.user.uid);
-      setShowOtpModal(false);
-      setOtpCode('');
+      setShowAuthModal(false);
       setAuthLoading(false);
       playSound('match');
-      alert("¡Teléfono verificado exitosamente con Firebase!");
     } catch (error) {
-      console.error("Error al verificar código:", error);
-      alert("Código incorrecto o expirado.");
+      console.error("Error Google Auth:", error);
+      alert("Error al iniciar sesión con Google.");
       setAuthLoading(false);
     }
   };
 
-  // LOGIN ADMIN AUTÉNTICO AUTENTICADO POR FIREBASE
-  const handleAdminLogin = async (e) => {
+  // ENVIAR ENLACE MÁGICO AL CORREO
+  const handleSendMagicLink = async (e) => {
     e.preventDefault();
-    setAdminAuthError('');
-    setAuthLoading(true);
+    if (!emailInput) return;
 
-    const cleanEmail = adminEmail.trim().toLowerCase();
+    setAuthLoading(true);
+    const actionCodeSettings = {
+      url: window.location.href, // Redirige de vuelta a la misma página
+      handleCodeInApp: true,
+    };
 
     try {
-      const res = await signInWithEmailAndPassword(auth, cleanEmail, adminPassword);
-      if (res.user.uid === ADMIN_UID) {
-        setIsAdmin(true);
-        setShowAdminLoginModal(false);
-        setAdminEmail('');
-        setAdminPassword('');
-        playSound('match');
-      } else {
-        setAdminAuthError("Acceso denegado: Esta cuenta no coincide con el Administrador único.");
-        playSound('pass');
-      }
+      await sendSignInLinkToEmail(auth, emailInput, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', emailInput);
+      setEmailSent(true);
       setAuthLoading(false);
+      playSound('message');
     } catch (error) {
-      console.error("Error admin auth:", error);
-      setAdminAuthError(`Error de autenticación: (${error.code})`);
+      console.error("Error enlace mágico:", error);
+      alert("No se pudo enviar el enlace al correo.");
       setAuthLoading(false);
-      playSound('pass');
     }
   };
 
   const handleLogout = async () => {
     await signOut(auth);
-    setIsAdmin(false);
+    setCurrentUser(null);
+    setCurrentUserId('');
     playSound('click');
     alert("Sesión cerrada.");
   };
 
   // GUARDAR PERFIL EN FIRESTORE
   const handleSaveProfile = async () => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
     playSound('click');
     setIsSavingProfile(true);
     try {
@@ -686,10 +636,14 @@ export default function App() {
     }
   };
 
-  // SISTEMA DE LIKE Y MATCH VERDADERO
+  // SISTEMA DE LIKE Y MATCH
   const handleLike = async (item) => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
+
     playSound('like');
-    
     const targetUserId = userRole === 'seeker' ? (item.ownerId || item.id) : item.id;
 
     try {
@@ -743,7 +697,7 @@ export default function App() {
   // ENVIAR MENSAJE
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessageText.trim() || !activeChat) return;
+    if (!newMessageText.trim() || !activeChat || !currentUser) return;
 
     const textToSend = newMessageText;
     setNewMessageText('');
@@ -809,6 +763,10 @@ export default function App() {
 
   const handlePostJob = async (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
     if (!selectedCoords) {
       alert("Por favor selecciona la ubicación en el mapa.");
       return;
@@ -853,13 +811,13 @@ export default function App() {
         targetTitle: reportTarget.title || reportTarget.name || 'Sin nombre',
         targetType: userRole === 'seeker' ? 'vacante' : 'candidato',
         reason: reportReason,
-        reporterId: currentUserId,
+        reporterId: currentUserId || 'anonimo',
         status: 'pendiente',
         createdAt: serverTimestamp()
       });
 
       playSound('click');
-      alert("🚩 Reporte registrado. El equipo de administración revisará la alerta.");
+      alert("🚩 Reporte registrado. El equipo revisará esta alerta.");
       setShowReportModal(false);
     } catch (err) {
       console.error("Error al reportar:", err);
@@ -867,26 +825,6 @@ export default function App() {
     }
   };
 
-  // RESOLVER REPORTE COMO ADMIN
-  const handleAdminResolve = async (reportItem, action) => {
-    playSound('click');
-    try {
-      if (action === 'delete') {
-        if (reportItem.targetType === 'vacante') {
-          await deleteDoc(doc(db, "vacantes", reportItem.targetId));
-        } else {
-          await deleteDoc(doc(db, "perfiles", reportItem.targetId));
-        }
-      }
-      await deleteDoc(doc(db, "reportes", reportItem.id));
-      alert(action === 'delete' ? "Elemento eliminado y reporte resuelto." : "Reporte descartado.");
-    } catch (err) {
-      console.error(err);
-      alert("Error al procesar acción de administración.");
-    }
-  };
-
-  // FILTRADO CON RADAR DE DISTANCIA
   const filteredJobs = jobs.filter(job => {
     if (job.status === 'filled') return false;
     if (!userCoords || !job.lat || !job.lng) return true;
@@ -922,9 +860,6 @@ export default function App() {
 
   return (
     <div className={`max-w-md mx-auto min-h-screen flex flex-col font-sans shadow-2xl relative overflow-hidden transition-colors duration-300 ${getThemeClasses()}`}>
-      
-      {/* RECAPTCHA CONTENEDOR INVISIBLE */}
-      <div id="recaptcha-container"></div>
 
       {showMapPicker && (
         <MapPickerModal 
@@ -952,6 +887,24 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2">
+            {!currentUser ? (
+              <button 
+                onClick={() => setShowAuthModal(true)}
+                className="text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-full shadow-sm"
+              >
+                Ingresar
+              </button>
+            ) : (
+              <button 
+                onClick={handleLogout}
+                className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2.5 py-1.5 rounded-full border border-rose-200 flex items-center space-x-1"
+                title="Cerrar sesión"
+              >
+                <LogOut size={12} />
+                <span>Salir</span>
+              </button>
+            )}
+
             <button 
               onClick={() => navigateTo('settings')}
               className={`p-2 rounded-full border transition ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}
@@ -964,7 +917,7 @@ export default function App() {
                 const nextRole = userRole === 'seeker' ? 'business' : 'seeker';
                 navigateTo('explore', nextRole);
               }}
-              className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 hover:scale-105 transition flex items-center space-x-1 shadow-sm"
+              className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100 flex items-center space-x-1 shadow-sm"
             >
               {userRole === 'seeker' ? <span>👤 Buscador</span> : <span>🏪 Modo Negocio</span>}
             </button>
@@ -1018,7 +971,6 @@ export default function App() {
         {currentPage === 'explore' && (
           <div className="p-4 space-y-4">
             
-            {/* BARRA DE RADAR / GPS */}
             <div className={`p-3 rounded-2xl shadow-sm border space-y-2 ${getCardClasses()}`}>
               <div className="flex justify-between items-center text-xs font-semibold">
                 <div className="flex items-center space-x-2">
@@ -1038,7 +990,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* SLIDER DE DISTANCIA (RADAR) */}
               {showFilterPanel && (
                 <div className="pt-2 border-t space-y-1">
                   <div className="flex justify-between text-[11px] font-bold opacity-70">
@@ -1079,7 +1030,6 @@ export default function App() {
                         </span>
                       </div>
 
-                      {/* BOTÓN REPORTAR VACANTE */}
                       <button 
                         onClick={() => { setReportTarget(filteredJobs[jobIndex]); setShowReportModal(true); }}
                         className="absolute top-3 left-3 bg-slate-900/60 text-white p-1.5 rounded-full backdrop-blur-md"
@@ -1126,7 +1076,6 @@ export default function App() {
                 <div className={`rounded-3xl p-8 text-center space-y-4 shadow-sm my-10 ${getCardClasses()}`}>
                   <div className="text-4xl">🎉</div>
                   <h3 className="font-bold">Has visto todas las vacantes en un radio de {distanceFilter} km</h3>
-                  <p className="text-xs opacity-60">Prueba ampliando el rango del radar arriba.</p>
                   <button onClick={() => setJobIndex(0)} className="bg-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-2xl">Reiniciar Lista</button>
                 </div>
               )
@@ -1209,10 +1158,9 @@ export default function App() {
           </div>
         )}
 
-        {/* CHAT DIRECTO EN TIEMPO REAL (MESSENGER) */}
+        {/* CHAT DIRECTO EN TIEMPO REAL */}
         {activeChat ? (
           <div className="flex flex-col h-[85vh] bg-slate-50">
-            {/* CABECERA DEL CHAT */}
             <div className="p-3 bg-white border-b flex items-center justify-between sticky top-0 z-20 shadow-sm">
               <div className="flex items-center space-x-3">
                 <button onClick={() => setActiveChat(null)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-full">
@@ -1245,7 +1193,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* LISTA DE MENSAJES */}
             <div className="flex-1 p-4 overflow-y-auto space-y-3">
               {chatMessages.length === 0 ? (
                 <div className="text-center py-10 space-y-2">
@@ -1271,7 +1218,6 @@ export default function App() {
               )}
             </div>
 
-            {/* INPUT DE ENVÍO */}
             <form onSubmit={handleSendMessage} className="p-3 bg-white border-t flex items-center space-x-2">
               <input 
                 type="text" 
@@ -1396,11 +1342,10 @@ export default function App() {
           </div>
         )}
 
-        {/* SECCIÓN "MIS VACANTES" (GESTIÓN DE EMPLEOS PARA NEGOCIOS) */}
+        {/* SECCIÓN MIS VACANTES */}
         {currentPage === 'my-jobs' && !activeChat && (
           <div className="p-4 space-y-4">
             <h2 className="font-black text-xl">Mis Vacantes Publicadas 🏪</h2>
-            <p className="text-xs opacity-60">Gestiona o desactiva vacantes para que no aparezcan en el buscador.</p>
 
             {myPostedJobs.length === 0 ? (
               <div className={`p-8 text-center rounded-3xl border space-y-3 ${getCardClasses()}`}>
@@ -1447,12 +1392,11 @@ export default function App() {
           </div>
         )}
 
-        {/* CONFIGURACIÓN Y AUTENTICACIÓN */}
+        {/* CONFIGURACIÓN Y APARIENCIA */}
         {currentPage === 'settings' && !activeChat && (
           <div className="p-4 space-y-5">
             <h2 className="font-black text-xl">Configuración y Seguridad ⚙️</h2>
 
-            {/* A. APARIENCIA */}
             <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
               <div className="flex items-center space-x-2">
                 <Palette size={18} className="text-indigo-500" />
@@ -1494,112 +1438,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* B. AUTENTICACIÓN POR TELÉFONO REAL (SMS FIREBASE) */}
-            <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
-              <div className="flex items-center space-x-2">
-                <Phone size={18} className="text-indigo-500" />
-                <h3 className="font-bold text-sm">Verificación por SMS (Firebase)</h3>
-              </div>
-
-              <p className="text-xs opacity-60">Recibe un código SMS para proteger tu cuenta oficialmente.</p>
-
-              {currentUser ? (
-                <div className="bg-emerald-50 text-emerald-700 p-3 rounded-2xl text-xs font-bold flex items-center justify-between border border-emerald-200">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle size={16} />
-                    <span>Sesión Autenticada: {currentUser.phoneNumber || currentUser.email || 'Usuario Activo'}</span>
-                  </div>
-                  <button onClick={handleLogout} className="text-rose-600 underline text-[10px]">Cerrar</button>
-                </div>
-              ) : (
-                <form onSubmit={handleSendSms} className="space-y-2">
-                  <div className="flex gap-2">
-                    <input 
-                      type="tel" 
-                      placeholder="Número a 10 dígitos (ej. 2711234567)" 
-                      value={phoneAuthNumber}
-                      onChange={(e) => setPhoneAuthNumber(e.target.value)}
-                      className="flex-1 bg-slate-100 border p-2.5 rounded-xl text-xs outline-none text-slate-800"
-                      required
-                    />
-                    <button 
-                      type="submit" 
-                      disabled={authLoading}
-                      className="bg-indigo-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition"
-                    >
-                      {authLoading ? 'Enviando...' : 'Enviar SMS'}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-
-            {/* C. MODO ADMINISTRADOR RECONOCIDO POR FIREBASE AUTH */}
-            <div className={`p-4 rounded-3xl border space-y-3 ${getCardClasses()}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <ShieldCheck size={18} className="text-indigo-500" />
-                  <h3 className="font-bold text-sm">Panel de Moderación</h3>
-                </div>
-                {isAdmin ? (
-                  <button 
-                    onClick={() => setIsAdmin(false)}
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-full border bg-rose-600 text-white flex items-center space-x-1"
-                  >
-                    <LogOut size={12} />
-                    <span>Salir Admin</span>
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => { setAdminAuthError(''); setShowAdminLoginModal(true); }}
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-full border bg-slate-100 text-slate-600"
-                  >
-                    Iniciar Admin
-                  </button>
-                )}
-              </div>
-
-              {isAdmin ? (
-                <div className="pt-2 space-y-2 border-t">
-                  <p className="text-xs font-bold opacity-70">Reportes de seguridad pendientes ({reportsList.length}):</p>
-                  
-                  {reportsList.length === 0 ? (
-                    <p className="text-xs text-emerald-600 font-medium">✨ No hay denuncias activas en el sistema.</p>
-                  ) : (
-                    reportsList.map((rep) => (
-                      <div key={rep.id} className="p-3 bg-slate-500/5 rounded-2xl border text-xs space-y-2">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-bold">{rep.targetTitle}</span>
-                            <p className="text-[10px] text-rose-500 font-semibold">{rep.reason}</p>
-                          </div>
-                          <span className="text-[9px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-md uppercase">{rep.targetType}</span>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => handleAdminResolve(rep, 'delete')}
-                            className="flex-1 bg-rose-600 text-white font-bold py-1.5 rounded-lg text-[11px]"
-                          >
-                            Darse de Baja
-                          </button>
-                          <button 
-                            onClick={() => handleAdminResolve(rep, 'dismiss')}
-                            className="bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-[11px]"
-                          >
-                            Desestimar
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs opacity-60">Inicia sesión con tu correo autorizado para activar el panel de moderación.</p>
-              )}
-            </div>
-
-            {/* D. POLITICAS DE SEGURIDAD */}
             <div className={`p-4 rounded-3xl border space-y-2 ${getCardClasses()}`}>
               <button 
                 onClick={() => setShowPrivacyModal(true)}
@@ -1687,7 +1525,6 @@ export default function App() {
                     onClick={() => setShowMapPicker(true)}
                     className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 p-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition"
                   >
-                    <MapIcon size={16} />
                     <span>{selectedCoords ? '📌 Cambiar punto en el mapa' : '🗺 Seleccionar en el mapa'}</span>
                   </button>
 
@@ -1727,102 +1564,64 @@ export default function App() {
 
       </main>
 
-      {/* MODAL CÓDIGO OTP (SMS) */}
-      {showOtpModal && (
+      {/* MODAL REGISTRO / AUTENTICACIÓN ULTRA SEGURA (GOOGLE Y CORREO SIN CONTRASEÑA) */}
+      {showAuthModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="flex items-center space-x-2 text-indigo-600 font-bold text-sm">
-              <Phone size={18} />
-              <span>Ingresa el código SMS</span>
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-bold text-sm text-indigo-600 flex items-center space-x-2">
+                <Lock size={16} />
+                <span>Ingresa a ChambaCerca</span>
+              </h3>
+              <button onClick={() => setShowAuthModal(false)} className="text-slate-400"><X size={16} /></button>
             </div>
+
             <p className="text-xs text-slate-500">
-              Hemos enviado un código de 6 dígitos a <span className="font-bold">{phoneAuthNumber}</span>.
+              Registrate con un clic o verifica tu correo con un enlace seguro.
             </p>
-            
-            <form onSubmit={handleVerifyOtp} className="space-y-3">
-              <input 
-                type="text" 
-                placeholder="000000"
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value)}
-                className="w-full bg-slate-100 border p-3 rounded-2xl text-center font-bold tracking-widest text-lg outline-none focus:ring-2 focus:ring-indigo-600"
-                autoFocus
-                required
-              />
 
-              <div className="flex gap-2 pt-1">
-                <button 
-                  type="button" 
-                  onClick={() => setShowOtpModal(false)}
-                  className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  disabled={authLoading}
-                  className="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md hover:bg-indigo-700"
-                >
-                  {authLoading ? 'Verificando...' : 'Confirmar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            {/* BOTÓN GOOGLE / GMAIL */}
+            <button 
+              onClick={handleGoogleSignIn}
+              disabled={authLoading}
+              className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-3 px-4 rounded-2xl text-xs flex items-center justify-center space-x-2 shadow-sm transition"
+            >
+              <span className="text-lg">🌐</span>
+              <span>Continuar con Google (Gmail)</span>
+            </button>
 
-      {/* MODAL LOGIN ADMIN */}
-      {showAdminLoginModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-800 rounded-3xl p-6 space-y-4 max-w-xs w-full shadow-2xl">
-            <div className="flex items-center space-x-2 text-indigo-600 font-bold text-sm">
-              <Key size={18} />
-              <span>Acceso de Administrador</span>
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-200"></div>
+              <span className="flex-shrink mx-2 text-[10px] text-slate-400 font-bold uppercase">o por correo</span>
+              <div className="flex-grow border-t border-slate-200"></div>
             </div>
-            <p className="text-xs text-slate-500">
-              Ingresa tu correo y contraseña registrados en Firebase.
-            </p>
-            
-            <form onSubmit={handleAdminLogin} className="space-y-3">
-              <input 
-                type="email" 
-                placeholder="alpurajean77@gmail.com"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                className="w-full bg-slate-100 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-600"
-                required
-              />
 
-              <input 
-                type="password" 
-                placeholder="Contraseña"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                className="w-full bg-slate-100 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-600"
-                required
-              />
-
-              {adminAuthError && (
-                <p className="text-xs text-rose-500 font-bold text-center">{adminAuthError}</p>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <button 
-                  type="button" 
-                  onClick={() => setShowAdminLoginModal(false)}
-                  className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  disabled={authLoading}
-                  className="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md hover:bg-indigo-700"
-                >
-                  {authLoading ? 'Validando...' : 'Iniciar Admin'}
-                </button>
+            {/* FORMULARIO ENLACE MÁGICO A CORREO */}
+            {emailSent ? (
+              <div className="bg-emerald-50 text-emerald-800 p-3 rounded-2xl text-xs space-y-1 text-center border border-emerald-200">
+                <p className="font-bold">📩 ¡Enlace enviado!</p>
+                <p className="text-[11px] text-emerald-600">Revisa tu correo y haz clic en el botón enviado para ingresar automáticamente.</p>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSendMagicLink} className="space-y-2">
+                <input 
+                  type="email" 
+                  placeholder="tu-correo@gmail.com" 
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  className="w-full bg-slate-100 border p-2.5 rounded-xl text-xs outline-none text-slate-800 focus:ring-2 focus:ring-indigo-600"
+                  required
+                />
+                <button 
+                  type="submit" 
+                  disabled={authLoading}
+                  className="w-full bg-indigo-600 text-white text-xs font-bold py-2.5 rounded-xl shadow-md hover:bg-indigo-700 flex items-center justify-center space-x-1"
+                >
+                  <Mail size={14} />
+                  <span>{authLoading ? 'Enviando...' : 'Enviar enlace de acceso'}</span>
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}
